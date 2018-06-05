@@ -1,0 +1,9 @@
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
+# for detailed Gopkg.toml documentation.
+[[constraint]]
+  name = "github.com/stianeikeland/go-rpio"
+  version = "4.0.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true
