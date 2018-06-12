@@ -40,7 +40,7 @@ func main() {
 	}
 	debug.SetGCPercent(100)
 
-	fmt.Printf("T: %f, H: %f\n", t, h)
+	fmt.Printf("Temp: %.1fC(%dF) Humidity: %.1f%%\n", t, int(t*9/5)+32, h)
 }
 
 func readDHT22(pin rpio.Pin) (float32, float32, bool) {
