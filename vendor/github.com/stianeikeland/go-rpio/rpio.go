@@ -66,7 +66,6 @@ import (
 	"encoding/binary"
 	"os"
 	"reflect"
-	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -123,7 +122,7 @@ const (
 
 // Arrays for 8 / 32 bit access to memory and a semaphore for write locking
 var (
-	memlock  sync.Mutex
+	// memlock  sync.Mutex
 	gpioMem  []uint32
 	clkMem   []uint32
 	pwmMem   []uint32
@@ -251,8 +250,8 @@ func PinMode(pin Pin, mode Mode) {
 		}
 	}
 
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 
 	const pinMask = 7 // 0b111 - pinmode is 3 bits
 
@@ -270,8 +269,8 @@ func WritePin(pin Pin, state State) {
 	clearReg := p/32 + 10
 	setReg := p/32 + 7
 
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 
 	if state == Low {
 		gpioMem[clearReg] = 1 << (p & 31)
@@ -310,8 +309,8 @@ func PullMode(pin Pin, pull Pull) {
 	pullReg := 37
 	shift := pin % 32
 
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 
 	switch pull {
 	case PullDown, PullUp:
@@ -383,8 +382,8 @@ func SetFreq(pin Pin, freq int) {
 		mash = 0
 	}
 
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 
 	const PASSWORD = 0x5A000000
 	const busy = 1 << 7
@@ -452,7 +451,7 @@ func SetDutyCycle(pin Pin, dutyLen, cycleLen uint32) {
 	const msen = 1 << 7 // use M/S transition instead of pwm algorithm
 
 	// reset settings
-	pwmMem[pwmCtlReg] = pwmMem[pwmCtlReg]&^(ctlMask<<shift) | msen<<shift | pwen <<shift
+	pwmMem[pwmCtlReg] = pwmMem[pwmCtlReg]&^(ctlMask<<shift) | msen<<shift | pwen<<shift
 	// set duty cycle
 	pwmMem[pwmDatReg] = dutyLen
 	pwmMem[pwmRngReg] = cycleLen
@@ -491,8 +490,8 @@ func Open() (err error) {
 	// FD can be closed after memory mapping
 	defer file.Close()
 
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 
 	// Memory map GPIO registers to slice
 	gpioMem, gpioMem8, err = memMap(file.Fd(), gpioBase)
@@ -535,8 +534,8 @@ func memMap(fd uintptr, base int64) (mem []uint32, mem8 []byte, err error) {
 
 // Close unmaps GPIO memory
 func Close() error {
-	memlock.Lock()
-	defer memlock.Unlock()
+	// memlock.Lock()
+	// defer memlock.Unlock()
 	if err := syscall.Munmap(gpioMem8); err != nil {
 		return err
 	}
