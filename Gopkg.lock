@@ -2,36 +2,14 @@
 
 
 [[projects]]
-  branch = "master"
-  name = "github.com/golang/glog"
-  packages = ["."]
-  revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/kidoman/embd"
-  packages = [
-    ".",
-    "host/generic",
-    "host/rpi"
-  ]
-  revision = "d3d8c0c5c68dc6caccebb7d720f36e64bafd0a62"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/morus12/dht22"
-  packages = ["."]
-  revision = "87805f7fca724f0d738d2849d9f4e4f00ccee6de"
-
-[[projects]]
   name = "github.com/stianeikeland/go-rpio"
   packages = ["."]
-  revision = "a6b0dffd47b6b1ddf7f1bfe2144f05bf335e911d"
-  version = "4.0.0"
+  revision = "3abdd2207d33843c1c3fbea540bdf07990075c03"
+  version = "4.1.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f735760b216e13cf08634cd23ed0a894c532a7c6c0d8cd1615d87e4b994d5732"
+  inputs-digest = "61ccb9895afb4f3df5f30ab530288f2249ed4ad58a076ee5108f7cd39052d7f6"
   solver-name = "gps-cdcl"
   solver-version = 1

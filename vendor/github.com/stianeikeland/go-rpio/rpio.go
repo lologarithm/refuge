@@ -6,6 +6,7 @@ Supports simple operations such as:
 	- Pin mode/direction (input/output/clock/pwm)
 	- Pin write (high/low)
 	- Pin read (high/low)
+	- Pin edge detection (no/rise/fall/any)
 	- Pull up/down/off
 And clock/pwm related oparations:
 	- Set Clock frequency
@@ -66,6 +67,7 @@ import (
 	"encoding/binary"
 	"os"
 	"reflect"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -75,6 +77,7 @@ type Mode uint8
 type Pin uint8
 type State uint8
 type Pull uint8
+type Edge uint8
 
 // Memory offsets for gpio, see the spec for more details
 const (
@@ -120,9 +123,17 @@ const (
 	PullUp
 )
 
+// Edge events
+const (
+	NoEdge Edge = iota
+	RiseEdge
+	FallEdge
+	AnyEdge = RiseEdge | FallEdge
+)
+
 // Arrays for 8 / 32 bit access to memory and a semaphore for write locking
 var (
-	// memlock  sync.Mutex
+	memlock  sync.Mutex
 	gpioMem  []uint32
 	clkMem   []uint32
 	pwmMem   []uint32
@@ -211,6 +222,16 @@ func (pin Pin) PullOff() {
 	PullMode(pin, PullOff)
 }
 
+// Enable edge event detection on pin
+func (pin Pin) Detect(edge Edge) {
+	DetectEdge(pin, edge)
+}
+
+// Check edge event on pin
+func (pin Pin) EdgeDetected() bool {
+	return EdgeDetected(pin)
+}
+
 // PinMode sets the mode (direction) of a given pin (Input, Output, Clock or Pwm)
 //
 // Clock is possible only for pins 4, 5, 6, 20, 21.
@@ -250,8 +271,8 @@ func PinMode(pin Pin, mode Mode) {
 		}
 	}
 
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 
 	const pinMask = 7 // 0b111 - pinmode is 3 bits
 
@@ -261,7 +282,6 @@ func PinMode(pin Pin, mode Mode) {
 // WritePin sets a given pin High or Low
 // by setting the clear or set registers respectively
 func WritePin(pin Pin, state State) {
-
 	p := uint8(pin)
 
 	// Clear register, 10 / 11 depending on bank
@@ -269,15 +289,14 @@ func WritePin(pin Pin, state State) {
 	clearReg := p/32 + 10
 	setReg := p/32 + 7
 
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 
 	if state == Low {
 		gpioMem[clearReg] = 1 << (p & 31)
 	} else {
 		gpioMem[setReg] = 1 << (p & 31)
 	}
-
 }
 
 // Read the state of a pin
@@ -303,14 +322,68 @@ func TogglePin(pin Pin) {
 	}
 }
 
+// Enable edge event detection on pin.
+//
+// Combine with pin.EdgeDetected() to check whether event occured.
+//
+// Note that using this function might conflict with the same functionality of other gpio library.
+//
+// It also clears previously detected event of this pin if any.
+//
+// Note that call with RiseEdge will disable previously set FallEdge detection and vice versa.
+// You have to call with AnyEdge, to enable detection for both edges.
+// To disable previously enabled detection call it with NoEdge.
+func DetectEdge(pin Pin, edge Edge) {
+	p := uint8(pin)
+
+	// Rising edge detect enable register (19/20 depending on bank)
+	// Falling edge detect enable register (22/23 depending on bank)
+	// Event detect status register (16/17)
+	renReg := p/32 + 19
+	fenReg := p/32 + 22
+	edsReg := p/32 + 16
+
+	bit := uint32(1 << (p & 31))
+
+	if edge&RiseEdge > 0 { // set bit
+		gpioMem[renReg] = gpioMem[renReg] | bit
+	} else { // clear bit
+		gpioMem[renReg] = gpioMem[renReg] &^ bit
+	}
+	if edge&FallEdge > 0 { // set bit
+		gpioMem[fenReg] = gpioMem[fenReg] | bit
+	} else { // clear bit
+		gpioMem[fenReg] = gpioMem[fenReg] &^ bit
+	}
+
+	gpioMem[edsReg] = bit // to clear outdated detection
+}
+
+// Check whether edge event occured since last call
+// or since detection was enabled
+//
+// There is no way (yet) to handle interruption caused by edge event, you have to use polling.
+//
+// Event detection has to be enabled first, by pin.Detect(edge)
+func EdgeDetected(pin Pin) bool {
+	p := uint8(pin)
+
+	// Event detect status register (16/17)
+	edsReg := p/32 + 16
+
+	test := gpioMem[edsReg] & (1 << (p & 31))
+	gpioMem[edsReg] = test // set bit to clear it
+	return test != 0
+}
+
 func PullMode(pin Pin, pull Pull) {
 	// Pull up/down/off register has offset 38 / 39, pull is 37
 	pullClkReg := pin/32 + 38
 	pullReg := 37
 	shift := pin % 32
 
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 
 	switch pull {
 	case PullDown, PullUp:
@@ -342,7 +415,7 @@ func PullMode(pin Pin, pull Pull) {
 // changing frequency for one pin will change it also for all pins within a group.
 // The groups are:
 //   gp_clk0: pins 4, 20, 32, 34
-//   gp_clk1: pins 5, 21, 42, 43
+//   gp_clk1: pins 5, 21, 42, 44
 //   gp_clk2: pins 6 and 43
 //   pwm_clk: pins 12, 13, 18, 19, 40, 41, 45
 func SetFreq(pin Pin, freq int) {
@@ -382,8 +455,8 @@ func SetFreq(pin Pin, freq int) {
 		mash = 0
 	}
 
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 
 	const PASSWORD = 0x5A000000
 	const busy = 1 << 7
@@ -490,8 +563,8 @@ func Open() (err error) {
 	// FD can be closed after memory mapping
 	defer file.Close()
 
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 
 	// Memory map GPIO registers to slice
 	gpioMem, gpioMem8, err = memMap(file.Fd(), gpioBase)
@@ -499,12 +572,13 @@ func Open() (err error) {
 		return
 	}
 
-	// Memory map clock reisters to slice
+	// Memory map clock registers to slice
 	clkMem, clkMem8, err = memMap(file.Fd(), clkBase)
 	if err != nil {
 		return
 	}
 
+	// Memory map pwm registers to slice
 	pwmMem, pwmMem8, err = memMap(file.Fd(), pwmBase)
 	if err != nil {
 		return
@@ -534,12 +608,15 @@ func memMap(fd uintptr, base int64) (mem []uint32, mem8 []byte, err error) {
 
 // Close unmaps GPIO memory
 func Close() error {
-	// memlock.Lock()
-	// defer memlock.Unlock()
+	memlock.Lock()
+	defer memlock.Unlock()
 	if err := syscall.Munmap(gpioMem8); err != nil {
 		return err
 	}
 	if err := syscall.Munmap(clkMem8); err != nil {
+		return err
+	}
+	if err := syscall.Munmap(pwmMem8); err != nil {
 		return err
 	}
 	return nil

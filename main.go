@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	MinCollecting = 2 * time.Second
-	maxWait       = int64(time.Millisecond) // 100
+	maxWait = int64(time.Millisecond) // 100us
 )
 
 func main() {
@@ -70,7 +69,7 @@ func readDHT22(pin rpio.Pin) (float32, float32, bool) {
 	firstWaitMax := int64(time.Millisecond * 5)
 	for pin.Read() == rpio.High {
 		if time.Now().UnixNano()-s > firstWaitMax {
-			panic("DHT never pulled low after we did.")
+			return -1, -1, false // DHT never pulled low... probably retry
 		}
 	}
 
@@ -101,14 +100,7 @@ READER:
 		}
 		pulseLen[i+1] = end - s
 	}
-
 	pin.PullOff()
-
-	// fmt.Printf("Completed read: %#v\n", pulseLen)
-	if pulseLen[66] == 0 {
-		// fmt.Printf("missing data, returning early.\n")
-		return -1, -1, false
-	}
 
 	var threshold int64
 	for i := 2; i < 82; i += 2 {
