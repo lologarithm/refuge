@@ -1,7 +1,6 @@
 package sensor
 
 import (
-	"fmt"
 	"runtime/debug"
 	"time"
 
@@ -22,22 +21,6 @@ type Measurement struct {
 // Stream accepts a pin to read on, how often to read, and a stream to write results to.
 // Close the stream to stop measurements.
 func Stream(p int, measureInterval time.Duration, stream chan Measurement) {
-	err := rpio.Open()
-	if err != nil {
-		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
-		// send fake data!
-		go func() {
-			for {
-				select {
-				case stream <- Measurement{Temp: 20, Humi: 50, Time: time.Now()}:
-				default:
-					return // bad, exit
-				}
-				time.Sleep(measureInterval)
-			}
-		}()
-		return
-	}
 	pin := rpio.Pin(p)
 	go func() {
 		for {

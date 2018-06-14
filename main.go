@@ -5,35 +5,60 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"sync/atomic"
 	"time"
 
+	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/thermo/climate"
 	"gitlab.com/lologarithm/thermo/sensor"
 )
 
 func main() {
-	pinN := flag.Int("pin", -1, "input pin to read")
+	tpin := flag.Int("tpin", 4, "input pin to read for temp")
+	hpin := flag.Int("hpin", 17, "output pin to turn on heat")
+	cpin := flag.Int("cpin", 27, "output pin to turn on cooling")
+	fpin := flag.Int("fpin", 22, "output pin to turn on fan")
 	host := flag.String("host", ":80", "host:port to serve on")
 	flag.Parse()
-	if *pinN == -1 {
-		fmt.Printf("no input pin set.")
-		os.Exit(1)
-	}
-	run(*pinN, *host)
+	run(*tpin, *fpin, *cpin, *hpin, *host)
 }
 
-func run(pin int, host string) {
-
+func run(tpin, fanpin, coolpin, heatpin int, host string) {
 	stream := make(chan sensor.Measurement, 10)
-	sensor.Stream(pin, time.Second*30, stream)
-
+	climateStream := make(chan sensor.Measurement, 10)
 	data := make([]sensor.Measurement, 1440)
 	var index int32
+	set := func(_ climate.Settings) {}
+	cs := climate.Settings{
+		Pins: climate.Pins{
+			Fan:  fanpin,
+			Heat: heatpin,
+			Cool: coolpin,
+		},
+		Low:  15.55,
+		High: 26.66,
+		Mode: climate.AutoMode,
+	}
 
-	climateStream := make(chan sensor.Measurement, 10)
-	set := climate.Control(climateStream)
+	err := rpio.Open()
+	if err != nil {
+		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
+		// send fake data!
+		go func() {
+			for {
+				select {
+				case stream <- sensor.Measurement{Temp: 20, Humi: 50, Time: time.Now()}:
+				default:
+					return // bad, exit
+				}
+				time.Sleep(time.Second * 30)
+			}
+		}()
+	} else {
+		sensor.Stream(tpin, time.Second*30, stream)
+		set = climate.Control(cs, climateStream)
+	}
+
 	target := 70 // F becauses thats what hallie will want
 
 	go func() {
@@ -58,29 +83,25 @@ func run(pin int, host string) {
 	}
 	// localTime := time.Location{}
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		writePage(w)
-	})
-
-	http.HandleFunc("/set", func(w http.ResponseWriter, r *http.Request) {
 		err := r.ParseForm()
-		if err != nil {
-			fmt.Printf("Failed to parse set form data: %s\n", err)
-			return
+		if err == nil {
+			// target, _ = strconv.ParseFloat(r.FormValue("goalc"), 32)
+			if _, ok := r.Form["upc"]; ok {
+				target++
+			} else if _, ok := r.Form["downc"]; ok {
+				target--
+			}
+			lowC := float32(target-5-32) * (5.0 / 9.0)
+			highC := float32(target+5-32) * (5.0 / 9.0)
+			fmt.Printf("New target: %dF (%.1f-%.1f)\n", target, lowC, highC)
+			// mode := r.FormValue("mode")
+			set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode, Pins: cs.Pins})
+			climateStream <- data[atomic.LoadInt32(&index)]
 		}
-		// target, _ = strconv.ParseFloat(r.FormValue("goalc"), 32)
-		if _, ok := r.Form["upc"]; ok {
-			target++
-		} else if _, ok := r.Form["downc"]; ok {
-			target--
-		}
-		lowC := float32(target-5-32) * (5 / 9)
-		highC := float32(target+5-32) * (5 / 9)
-		// mode := r.FormValue("mode")
-		set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode})
 		writePage(w)
 	})
 
-	err := http.ListenAndServe(host, nil)
+	err = http.ListenAndServe(host, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

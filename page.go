@@ -35,7 +35,7 @@ var page = `<html>
     <p style="font-size: 6em;">%.1fC / %dF<br />%.1f%%</p>
   </div>
   <div style="">
-    <form action="/set" method="post">
+    <form action="/" method="post">
       <button action="submit" name="upc" id="upC">▲</button>
       <input type="text" id="goalC" name="goalc" value="%d" />
       <button action="submit" name="downc" id="downC">▼</button>
