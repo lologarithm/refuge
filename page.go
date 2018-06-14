@@ -2,17 +2,6 @@ package main
 
 var page = `<html>
 <head>
-  <script>
-    function setTarget(delta) {
-      // 1. Load Current Goal Value
-      // 2. modify it it.
-      // 3. Post form value to server /set
-    }
-    document.getElementById("upC").onclick = function(event) {
-    };
-    document.getElementById("downC").onclick = function(event) {
-    };
-  </script>
   <style>
   div {
     margin: auto;
