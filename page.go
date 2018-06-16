@@ -8,36 +8,36 @@ var page = `<html>
   }
   form {
     margin: auto;
-    width: 650px;
+    width: 40vw;
   }
   button {
-      height:150px;
-      width:150px;
-      font-size: 6em;
+      height:15vw;
+      width:15vw;
+      font-size: 6vw;
   }
   #goalC {
-    font-size: 5em;
-    margin-left: 50px;
-    width: 100px;
-    height: 150px;
+    font-size: 8vw;
+    width: 15vw;
+    height: 15vw;
     color: white;
     background-color: transparent;
     border: none;
+    margin-left: 10vw;
   }
   #downC {
-    margin-left:50px;
+    margin-left:5vw;
   }
   </style>
 </head>
 <body style="background-color: black;color: white">
-  <p style="font-size: 4em;">%s</p>
-  <div style="width: 610px">
-    <p style="font-size: 6em;">%.1fC / %dF<br />%.1f%%</p>
+  <p style="font-size: 4vw;">%s</p>
+  <div style="width: 40vw">
+    <p style="font-size: 6vw;">%.1fC / %dF<br />%.1f%%</p>
   </div>
-  <div style="">
+  <div>
     <form action="/" method="post">
+      <input type="text" id="goalC" name="goalc" value="%d" /><br />
       <button action="submit" name="upc" id="upC">▲</button>
-      <input type="text" id="goalC" name="goalc" value="%d" />
       <button action="submit" name="downc" id="downC">▼</button>
     </form>
   </div>

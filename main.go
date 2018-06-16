@@ -30,11 +30,6 @@ func run(tpin, fanpin, coolpin, heatpin int, host string) {
 	var index int32
 	set := func(_ climate.Settings) {}
 	cs := climate.Settings{
-		Pins: climate.Pins{
-			Fan:  fanpin,
-			Heat: heatpin,
-			Cool: coolpin,
-		},
 		Low:  15.55,
 		High: 26.66,
 		Mode: climate.AutoMode,
@@ -54,9 +49,10 @@ func run(tpin, fanpin, coolpin, heatpin int, host string) {
 				time.Sleep(time.Second * 30)
 			}
 		}()
+		set = climate.Control(climate.FakeController{}, cs, climateStream)
 	} else {
+		set = climate.Control(climate.NewController(heatpin, coolpin, fanpin), cs, climateStream)
 		sensor.Stream(tpin, time.Second*30, stream)
-		set = climate.Control(cs, climateStream)
 	}
 
 	target := 70 // F becauses thats what hallie will want
@@ -95,7 +91,7 @@ func run(tpin, fanpin, coolpin, heatpin int, host string) {
 			highC := float32(target+5-32) * (5.0 / 9.0)
 			fmt.Printf("New target: %dF (%.1f-%.1f)\n", target, lowC, highC)
 			// mode := r.FormValue("mode")
-			set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode, Pins: cs.Pins})
+			set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode})
 			climateStream <- data[atomic.LoadInt32(&index)]
 		}
 		writePage(w)

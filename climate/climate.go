@@ -19,75 +19,108 @@ type Settings struct {
 	Low  float32 // low temp in C
 	High float32 // high temp in C
 	Mode Mode
-	Pins Pins
 }
 
-type Pins struct {
-	Fan  int
-	Heat int
-	Cool int
+type Controller interface {
+	Heat()
+	Cool()
+	Fan()
+	Off()
 }
 
-// Control accepts a stream of input and returns a function to set the target state.
-func Control(s Settings, stream chan sensor.Measurement) func(s Settings) {
-	// if s.
+type RealController struct {
+	FanP  rpio.Pin
+	CoolP rpio.Pin
+	HeatP rpio.Pin
+}
 
-	fan := rpio.Pin(s.Pins.Fan)
+func NewController(h, c, f int) Controller {
+	fan := rpio.Pin(f)
 	fan.Mode(rpio.Output)
-	cool := rpio.Pin(s.Pins.Cool)
+	cool := rpio.Pin(c)
 	cool.Mode(rpio.Output)
-	heat := rpio.Pin(s.Pins.Heat)
+	heat := rpio.Pin(h)
 	heat.Mode(rpio.Output)
 
+	return RealController{
+		FanP:  fan,
+		CoolP: cool,
+		HeatP: heat,
+	}
+}
+
+func (rc RealController) Heat() {
+	// Activate heating
+	rc.FanP.High()
+	rc.CoolP.Low()
+	rc.HeatP.High()
+}
+func (rc RealController) Cool() {
+	// Activate cooling
+	rc.FanP.High()
+	rc.CoolP.High()
+	rc.HeatP.Low()
+}
+func (rc RealController) Fan() {
+	rc.FanP.High()
+	rc.CoolP.Low()
+	rc.HeatP.Low()
+}
+func (rc RealController) Off() {
+	rc.FanP.Low()
+	rc.CoolP.Low()
+	rc.HeatP.Low()
+}
+
+// Does nothing. used for running without actually doing anything
+type FakeController struct {
+}
+
+func (fc FakeController) Heat() {}
+func (fc FakeController) Cool() {}
+func (fc FakeController) Fan()  {}
+func (fc FakeController) Off()  {}
+
+type controlState byte
+
+const (
+	stateIdle controlState = iota
+	stateCooling
+	stateHeating
+)
+
+// Control accepts a stream of input and returns a function to set the target state.
+func Control(controller Controller, s Settings, stream chan sensor.Measurement) func(s Settings) {
 	go func() {
 		// Run the climate control system here.
+		state := stateIdle
 		for {
 			v := <-stream
 			fmt.Printf("Temp: %.1f, State: %v\n", v.Temp, s)
-			if v.Temp > s.High && cool > 0 {
-				fmt.Printf("Activating cooling...\n")
-				// Activate cooling
-				fan.High()
-				cool.High()
-				heat.Low()
-			} else if v.Temp < s.Low && heat > 0 {
-				fmt.Printf("Activating heating...\n")
-				// Activate heating
-				fan.High()
-				cool.Low()
-				heat.High()
-			} else {
-				fmt.Printf("Disabling all climate controls...\n")
-				fan.Low()
-				cool.Low()
-				heat.Low()
+			if state == stateIdle {
+				if v.Temp > s.High {
+					fmt.Printf("Activating cooling...\n")
+					state = stateCooling
+					controller.Cool()
+				} else if v.Temp < s.Low {
+					fmt.Printf("Activating heating...\n")
+					state = stateHeating
+					controller.Heat()
+				} else {
+					fmt.Printf("Disabling all climate controls...\n")
+					state = stateIdle
+					controller.Off()
+				}
+			}
+			if s.High == 0 || s.Low == 0 {
+				// Exit!
+				fmt.Printf("No valid high/low temp specified. Control loop exiting.\n")
+				return
 			}
 		}
 	}()
 
 	return func(ns Settings) {
-		// Update pins if needed
-		if ns.Pins.Cool != int(cool) {
-			if int(cool) != 0 {
-				cool.Low()
-			}
-			cool = rpio.Pin(ns.Pins.Cool)
-			cool.Mode(rpio.Output)
-		}
-		if ns.Pins.Heat != int(heat) {
-			if int(heat) != 0 {
-				heat.Low()
-			}
-			heat = rpio.Pin(ns.Pins.Heat)
-			heat.Mode(rpio.Output)
-		}
-		if ns.Pins.Fan != int(fan) {
-			if int(fan) != 0 {
-				fan.Low()
-			}
-			fan = rpio.Pin(ns.Pins.Fan)
-			fan.Mode(rpio.Output)
-		}
 		// Update the current state.
 		s = ns
 	}
