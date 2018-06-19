@@ -2,6 +2,12 @@ package main
 
 var page = `<html>
 <head>
+  <script>
+    window.onload=function(){
+      var f = document.getElementById("refresh");
+      window.setTimeout(function() {f.submit();}, 5000);
+    };
+  </script>
   <style>
   div {
     margin: auto;
@@ -41,5 +47,6 @@ var page = `<html>
       <button action="submit" name="downc" id="downC">▼</button>
     </form>
   </div>
+  <form action="/" method="get" id="refresh"></form>
 </body>
 </html>`

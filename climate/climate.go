@@ -34,13 +34,16 @@ type RealController struct {
 	HeatP rpio.Pin
 }
 
-func NewController(h, c, f int) Controller {
+func NewController(h, c, f int) RealController {
 	fan := rpio.Pin(f)
 	fan.Mode(rpio.Output)
+	fan.High()
 	cool := rpio.Pin(c)
 	cool.Mode(rpio.Output)
+	cool.High()
 	heat := rpio.Pin(h)
 	heat.Mode(rpio.Output)
+	heat.High()
 
 	return RealController{
 		FanP:  fan,
@@ -50,26 +53,27 @@ func NewController(h, c, f int) Controller {
 }
 
 func (rc RealController) Heat() {
-	// Activate heating
-	rc.FanP.High()
-	rc.CoolP.Low()
-	rc.HeatP.High()
+	rc.CoolP.High()
+
+	rc.FanP.Low()
+	rc.HeatP.Low()
 }
 func (rc RealController) Cool() {
-	// Activate cooling
-	rc.FanP.High()
-	rc.CoolP.High()
-	rc.HeatP.Low()
-}
-func (rc RealController) Fan() {
-	rc.FanP.High()
-	rc.CoolP.Low()
-	rc.HeatP.Low()
-}
-func (rc RealController) Off() {
+	rc.HeatP.High()
+
 	rc.FanP.Low()
 	rc.CoolP.Low()
-	rc.HeatP.Low()
+}
+func (rc RealController) Fan() {
+	rc.FanP.Low()
+
+	rc.CoolP.High()
+	rc.HeatP.High()
+}
+func (rc RealController) Off() {
+	rc.FanP.High()
+	rc.CoolP.High()
+	rc.HeatP.High()
 }
 
 // Does nothing. used for running without actually doing anything
@@ -97,7 +101,7 @@ func Control(controller Controller, s Settings, stream chan sensor.Measurement) 
 		for {
 			v := <-stream
 			fmt.Printf("Temp: %.1f, State: %v\n", v.Temp, s)
-			if state == stateIdle {
+			if state == stateIdle || true { // default to override for now.
 				if v.Temp > s.High {
 					fmt.Printf("Activating cooling...\n")
 					state = stateCooling

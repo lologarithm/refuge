@@ -15,11 +15,12 @@ import (
 
 func main() {
 	tpin := flag.Int("tpin", 4, "input pin to read for temp")
-	hpin := flag.Int("hpin", 17, "output pin to turn on heat")
-	cpin := flag.Int("cpin", 27, "output pin to turn on cooling")
-	fpin := flag.Int("fpin", 22, "output pin to turn on fan")
+	hpin := flag.Int("hpin", 24, "output pin to turn on heat")
+	cpin := flag.Int("cpin", 22, "output pin to turn on cooling")
+	fpin := flag.Int("fpin", 23, "output pin to turn on fan")
 	host := flag.String("host", ":80", "host:port to serve on")
 	flag.Parse()
+	fmt.Printf("Thermo Pin: %d\nHeating Pin: %d\nCooling Pin: %d\nFan Pin: %d\n", *tpin, *hpin, *cpin, *fpin)
 	run(*tpin, *fpin, *cpin, *hpin, *host)
 }
 
@@ -51,7 +52,9 @@ func run(tpin, fanpin, coolpin, heatpin int, host string) {
 		}()
 		set = climate.Control(climate.FakeController{}, cs, climateStream)
 	} else {
-		set = climate.Control(climate.NewController(heatpin, coolpin, fanpin), cs, climateStream)
+		controller := climate.NewController(heatpin, coolpin, fanpin)
+		fmt.Printf("Controller: %v\n", controller)
+		set = climate.Control(controller, cs, climateStream)
 		sensor.Stream(tpin, time.Second*30, stream)
 	}
 
@@ -82,17 +85,22 @@ func run(tpin, fanpin, coolpin, heatpin int, host string) {
 		err := r.ParseForm()
 		if err == nil {
 			// target, _ = strconv.ParseFloat(r.FormValue("goalc"), 32)
+			change := true
 			if _, ok := r.Form["upc"]; ok {
 				target++
 			} else if _, ok := r.Form["downc"]; ok {
 				target--
+			} else {
+				change = false
 			}
-			lowC := float32(target-5-32) * (5.0 / 9.0)
-			highC := float32(target+5-32) * (5.0 / 9.0)
-			fmt.Printf("New target: %dF (%.1f-%.1f)\n", target, lowC, highC)
-			// mode := r.FormValue("mode")
-			set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode})
-			climateStream <- data[atomic.LoadInt32(&index)]
+			if change {
+				lowC := float32(target-3-32) * (5.0 / 9.0)
+				highC := float32(target+3-32) * (5.0 / 9.0)
+				fmt.Printf("New target: %dF (%.1f-%.1f)\n", target, lowC, highC)
+				// mode := r.FormValue("mode")
+				set(climate.Settings{Low: lowC, High: highC, Mode: climate.AutoMode})
+				climateStream <- data[atomic.LoadInt32(&index)]
+			}
 		}
 		writePage(w)
 	})
