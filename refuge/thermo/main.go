@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
@@ -19,12 +21,17 @@ func main() {
 	hpin := flag.Int("hpin", 24, "output pin to turn on heat")
 	cpin := flag.Int("cpin", 22, "output pin to turn on cooling")
 	fpin := flag.Int("fpin", 23, "output pin to turn on fan")
+	name := flag.String("name", "", "name of thermostat")
 	flag.Parse()
-	fmt.Printf("Thermo Pin: %d\nHeating Pin: %d\nCooling Pin: %d\nFan Pin: %d\n", *tpin, *hpin, *cpin, *fpin)
-	run(*tpin, *fpin, *cpin, *hpin)
+	fmt.Printf("Name: %s, Thermo Pin: %d\nHeating Pin: %d\nCooling Pin: %d\nFan Pin: %d\n", *name, *tpin, *hpin, *cpin, *fpin)
+	if *name == "" {
+		fmt.Printf("Name parameter is required.")
+		os.Exit(1)
+	}
+	run(*name, *tpin, *fpin, *cpin, *hpin)
 }
 
-func run(tpin, fanpin, coolpin, heatpin int) {
+func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	stream := make(chan sensor.Measurement, 10)
 	climateStream := make(chan sensor.Measurement, 10)
 	set := func(_ climate.Settings) {}
@@ -34,7 +41,11 @@ func run(tpin, fanpin, coolpin, heatpin int) {
 		Mode: climate.AutoMode,
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
+	addr, err := net.ResolveUDPAddr("udp", ":8888")
+	if err != nil {
+		log.Fatalf("Failed to resolve udp: %s", err)
+	}
+	baddr, err := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
 	if err != nil {
 		log.Fatalf("Failed to resolve udp: %s", err)
 	}
@@ -44,13 +55,25 @@ func run(tpin, fanpin, coolpin, heatpin int) {
 		log.Fatalf("Failed to listen to udp: %s", err)
 	}
 
-	enc := json.NewEncoder(direct)
+	// enc := json.NewEncoder(direct)
 	dec := json.NewDecoder(direct)
 
 	go func() {
 		for d := range stream {
 			climateStream <- d
-			enc.Encode(d)
+			ts := refugenet.Thermostat{
+				Name:     name,
+				Target:   (cs.High + cs.Low) / 2,
+				Temp:     d.Temp,
+				Humidity: d.Humi,
+			}
+			msg, err := json.Marshal(ts)
+			if err != nil {
+				fmt.Printf("Failed to marshal climate reading: %s", err)
+			}
+			fmt.Printf("Climate reading: %#v", d)
+			direct.WriteToUDP(msg, baddr)
+			// enc.Encode(d)
 		}
 	}()
 
@@ -86,4 +109,7 @@ func run(tpin, fanpin, coolpin, heatpin int) {
 		set = climate.Control(controller, cs, climateStream)
 		sensor.Stream(tpin, time.Second*30, stream)
 	}
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
 }

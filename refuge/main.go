@@ -7,7 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"time"
+	"sync"
 
 	"gitlab.com/lologarithm/thermo/refuge/refugenet"
 )
@@ -18,56 +18,62 @@ func main() {
 	serve(*host, monitor())
 }
 
-type Thermostat struct {
-	Name     string  // Name of thermostat
-	Target   float32 // Targeted temp
-	Temp     float32 // Last temp reading
-	Humidity float32 // Last humidity reading
-}
-
-func monitor() chan Thermostat {
-	stream := make(chan Thermostat, 100)
-	baddr, _ := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
-	udp, _ := net.ListenUDP("udp", baddr)
-	buffer := make([]byte, 2048)
+func monitor() chan refugenet.Thermostat {
+	stream := make(chan refugenet.Thermostat, 100)
+	baddr, err := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
+	if err != nil {
+		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+	}
+	udp, err := net.ListenMulticastUDP("udp", nil, baddr)
+	if err != nil {
+		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
+	}
 	dec := json.NewDecoder(udp)
 	go func() {
-		reading := Thermostat{}
-		err := dec.Decode(&reading)
-		if err != nil {
-			// lol
-		}
-		stream <- reading
-	}()
-	go func() {
-		v, n, err := udp.ReadFromUDP(buffer)
-		if err != nil {
-			log.Printf("Failed to read from buffer, sleeping a bit before trying again")
-			time.Sleep(time.Second * 5)
-			udp = net.ListenUDP()
+		for {
+			reading := refugenet.Thermostat{}
+			err := dec.Decode(&reading)
+			if err != nil {
+				log.Printf("Failed to decode json msg: %s", err)
+				// lol
+			}
+			log.Printf("New reading: %#v", reading)
+			stream <- reading
 		}
 	}()
 	return stream
 }
 
 type PageData struct {
-	Master Thermostat
-	Living Thermostat
-	Family Thermostat
+	Thermostats map[string]refugenet.Thermostat
 }
 
-func serve(host string, stream chan Thermostat) {
+func serve(host string, stream chan refugenet.Thermostat) {
 	tmpl, err := template.ParseFiles("index.html")
 	if err != nil {
 		log.Fatalf("unable to parse html: %s", err)
 	}
 	// localTime := time.Location{}
-	pd := &PageData{}
+	l := sync.Mutex{}
+	pd := &PageData{
+		Thermostats: make(map[string]refugenet.Thermostat, 3),
+	}
+
+	go func() {
+		for td := range stream {
+			l.Lock()
+			pd.Thermostats[td.Name] = td
+			l.Unlock()
+		}
+	}()
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		l.Lock()
 		tmpl.Execute(w, pd)
+		l.Unlock()
 	})
 
+	log.Printf("starting webhost on: %s", host)
 	err = http.ListenAndServe(host, nil)
 	if err != nil {
 		log.Fatal(err)
