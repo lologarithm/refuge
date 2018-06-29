@@ -41,7 +41,7 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 		Mode: climate.AutoMode,
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", ":8888")
+	addr, err := net.ResolveUDPAddr("udp", ":0")
 	if err != nil {
 		log.Fatalf("Failed to resolve udp: %s", err)
 	}

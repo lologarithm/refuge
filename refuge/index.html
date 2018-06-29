@@ -1,11 +1,68 @@
 <html>
 <head>
   <style>
+    .thermo {
+      background-color: #DDEEFF;
+      text-align: center;
+      padding-bottom: 10px;
+      padding-top: 10px;
+      font-size: calc(16px + 2vw);
+      padding-top: 2vw;
+      padding-bottom: 2vw;
+      margin-bottom: 20px;
+    }
+    label {
+      font-size: 4vw;
+    }
+    button {
+      padding: 0;
+      margin-left: 2vw;
+      margin-right: 2vw;
+      height: 8vw;
+      width: 8vw;
+      font-size: calc(16px + 3vw);
+    }
   </style>
 </head>
-<body style="background-color: black;color: white">
-  {{ range $key, $value := .Thermostats }}
-    <li><strong>{{ $key }}</strong>: {{ $value }}</li>
-  {{ end }}
+<body>
+  <div><p style="font-size:3em">Refuge Home Automation</p></div>
+  <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
+  <div class="thermo" style="display:none" id="thermosample"><strong>THERMO NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
 </body>
+<script>
+  var ws = new WebSocket("ws://" + location.host + "/stream");
+  // Connection opened
+  ws.addEventListener('open', function (event) {
+    console.log("Socket opened.");
+  });
+
+  // Listen for messages
+  ws.addEventListener('message', function (event) {
+    var thdata = JSON.parse(event.data);
+    var thid = "thermo" + thdata.Name.replace(" ", "");
+    var thdiv = document.getElementById(thid);
+
+    if (thdiv == null) {
+      console.log("Couldn't find existing div for " + thdata.Name + "... Constructing now: ", thid, thdata);
+      thdiv = document.getElementById("thermosample").cloneNode(true)
+      thdiv.id = thid;
+      thdiv.style.display = "block";
+      thdiv.childNodes[0].innerText = thdata.Name;
+      // TODO: make better selectors
+      thdiv.childNodes[3].addEventListener("click", function(){
+        ws.send("{}");
+        console.log("clicked up");
+      });
+      thdiv.childNodes[5].addEventListener("click", function(){
+        ws.send("{}");
+        console.log("clicked down");
+      });
+      document.body.appendChild(thdiv);
+    }
+    // Now update the values for current temp/hum and target.
+    thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp;
+    thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
+    thdiv.childNodes[4].innerText = thdata.Target;
+  });
+</script>
 </html>
