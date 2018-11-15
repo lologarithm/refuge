@@ -67,11 +67,10 @@ func MyIPs() (mine []string) {
 			continue // ignore docker network
 		}
 		if multi, err := itf.MulticastAddrs(); err != nil {
-			log.Fatal("cant get the IPs  MulticastAddress", err)
+			log.Fatal("cant get the IPs MulticastAddress", err)
 		} else if len(multi) == 0 {
 			continue // no multicast
 		}
-
 		addrs, err := itf.Addrs()
 		failErr("get addrs", err)
 

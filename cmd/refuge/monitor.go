@@ -11,19 +11,22 @@ import (
 func monitor() (chan rnet.Thermostat, chan rnet.Fireplace) {
 	tstream := make(chan rnet.Thermostat, 10)
 	fstream := make(chan rnet.Fireplace, 10)
+
 	udp, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeMessages)
 	if err != nil {
 		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
 	}
 	log.Printf("Now listening to %s for device updates.", rnet.RefugeMessages.String())
+
 	dec := json.NewDecoder(udp)
 	go func() {
 		for {
 			reading := rnet.Msg{}
+			log.Printf("Waiting for message...")
 			err := dec.Decode(&reading)
 			if err != nil {
 				log.Printf("Failed to decode json msg: %s", err)
-				// lol
+				continue
 			}
 			if reading.Thermostat != nil {
 				log.Printf("New reading: %#v", reading.Thermostat)
@@ -31,6 +34,9 @@ func monitor() (chan rnet.Thermostat, chan rnet.Fireplace) {
 			} else if reading.Fireplace != nil {
 				log.Printf("New fireplace: %#v", reading.Fireplace)
 				fstream <- *reading.Fireplace
+				log.Printf("fireplace update sent...")
+			} else {
+				log.Printf("Unknown update msg: %#v", reading)
 			}
 		}
 	}()
@@ -48,5 +54,8 @@ func ping() {
 	if err != nil {
 		log.Fatalf("Failed to listen to udp socket: %s", err)
 	}
-	udpConn.WriteToUDP([]byte("{}"), rnet.RefugeDiscovery)
+	n, err := udpConn.WriteToUDP([]byte("{}"), rnet.RefugeDiscovery)
+	if n == 0 || err != nil {
+		log.Fatalf("Bytes: %d, Err: %s", n, err)
+	}
 }

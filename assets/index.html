@@ -62,6 +62,7 @@
     if (msg.Thermostat != null) {
       updateThermo(msg.Thermostat);
     } else if (msg.Fireplace != null) {
+      console.log("Fireplace update: ", msg.Fireplace)
       updateFire(msg.Fireplace);
     }
   });

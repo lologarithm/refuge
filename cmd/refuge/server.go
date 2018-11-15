@@ -48,34 +48,37 @@ func serve(host string, thermoStream chan rnet.Thermostat, fireStream chan rnet.
 	updates := make(chan []byte, 10)
 
 	go func() {
-		select {
-		case td := <-thermoStream:
-			// Update our cached thermostats
-			pd.Lock()
-			pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = td
-			pd.Unlock()
+		for {
+			select {
+			case td := <-thermoStream:
+				// Update our cached thermostats
+				pd.Lock()
+				pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = td
+				pd.Unlock()
 
-			// Now push the update to all connected websockets
-			d, err := json.Marshal(&Update{Thermostat: &td})
-			log.Printf("Writing: %v", string(d))
-			if err != nil {
-				log.Printf("Failed to marshal thermal data to json: %s", err)
+				// Now push the update to all connected websockets
+				d, err := json.Marshal(&Update{Thermostat: &td})
+				log.Printf("Writing: %v", string(d))
+				if err != nil {
+					log.Printf("Failed to marshal thermal data to json: %s", err)
+				}
+				updates <- d
+			case fd := <-fireStream:
+				// Update our cached thermostats
+				pd.Lock()
+				pd.Fireplace[strings.Replace(fd.Name, " ", "", -1)] = fd
+				log.Printf("Fireplace state is now: %#v", fd)
+				pd.Unlock()
+
+				// Now push the update to all connected websockets
+				d, err := json.Marshal(&Update{Fireplace: &fd})
+				log.Printf("Writing: %v", string(d))
+				if err != nil {
+					log.Printf("Failed to marshal thermal data to json: %s", err)
+				}
+				updates <- d
+
 			}
-			updates <- d
-		case fd := <-fireStream:
-			// Update our cached thermostats
-			pd.Lock()
-			pd.Fireplace[strings.Replace(fd.Name, " ", "", -1)] = fd
-			pd.Unlock()
-
-			// Now push the update to all connected websockets
-			d, err := json.Marshal(&Update{Fireplace: &fd})
-			log.Printf("Writing: %v", string(d))
-			if err != nil {
-				log.Printf("Failed to marshal thermal data to json: %s", err)
-			}
-			updates <- d
-
 		}
 	}()
 
