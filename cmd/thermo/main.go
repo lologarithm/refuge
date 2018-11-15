@@ -11,9 +11,9 @@ import (
 	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
-	"gitlab.com/lologarithm/thermo/climate"
-	"gitlab.com/lologarithm/thermo/refuge/refugenet"
-	"gitlab.com/lologarithm/thermo/sensor"
+	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/rnet"
+	"gitlab.com/lologarithm/refuge/sensor"
 )
 
 func main() {
@@ -38,14 +38,18 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	cs := climate.Settings{
 		Low:  15.55,
 		High: 26.66,
-		Mode: climate.AutoMode,
+		Mode: climate.ModeAuto,
 	}
 
-	addr, err := net.ResolveUDPAddr("udp", ":0")
+	addrs := rnet.MyIPs()
+	log.Printf("MyAddrs: %#s", addrs)
+
+	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
 	if err != nil {
 		log.Fatalf("Failed to resolve udp: %s", err)
 	}
-	baddr, err := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
+
+	baddr, err := net.ResolveUDPAddr("udp", rnet.ThermoSpace)
 	if err != nil {
 		log.Fatalf("Failed to resolve udp: %s", err)
 	}
@@ -54,6 +58,9 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	if err != nil {
 		log.Fatalf("Failed to listen to udp: %s", err)
 	}
+	log.Printf("Listening on: %s", direct.LocalAddr())
+
+	directAddr := direct.LocalAddr()
 
 	// enc := json.NewEncoder(direct)
 	dec := json.NewDecoder(direct)
@@ -61,8 +68,9 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	go func() {
 		for d := range stream {
 			climateStream <- d
-			ts := refugenet.Thermostat{
+			ts := rnet.Thermostat{
 				Name:     name,
+				Addr:     directAddr.String(),
 				Target:   (cs.High + cs.Low) / 2,
 				Temp:     d.Temp,
 				Humidity: d.Humi,
@@ -84,6 +92,7 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 			if err != nil {
 				//lol
 			}
+			fmt.Printf("Climate set attempt: %#v", v)
 			set(v)
 		}
 	}()

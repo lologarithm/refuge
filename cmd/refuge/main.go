@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"github.com/gorilla/websocket"
-	"gitlab.com/lologarithm/thermo/climate"
-	"gitlab.com/lologarithm/thermo/refuge/refugenet"
+	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/rnet"
 )
 
 func main() {
@@ -21,9 +21,9 @@ func main() {
 	serve(*host, monitor())
 }
 
-func monitor() chan refugenet.Thermostat {
-	stream := make(chan refugenet.Thermostat, 100)
-	baddr, err := net.ResolveUDPAddr("udp", refugenet.ThermoSpace)
+func monitor() chan rnet.Thermostat {
+	stream := make(chan rnet.Thermostat, 100)
+	baddr, err := net.ResolveUDPAddr("udp", rnet.ThermoSpace)
 	if err != nil {
 		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
 	}
@@ -31,10 +31,11 @@ func monitor() chan refugenet.Thermostat {
 	if err != nil {
 		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
 	}
+
 	dec := json.NewDecoder(udp)
 	go func() {
 		for {
-			reading := refugenet.Thermostat{}
+			reading := rnet.Thermostat{}
 			err := dec.Decode(&reading)
 			if err != nil {
 				log.Printf("Failed to decode json msg: %s", err)
@@ -49,27 +50,29 @@ func monitor() chan refugenet.Thermostat {
 
 type PageData struct {
 	*sync.Mutex // Mutex for the thermostat list
-	Thermostats map[string]refugenet.Thermostat
+	Thermostats map[string]rnet.Thermostat
+	Fireplace   map[string]rnet.Fireplace
 }
 
-func serve(host string, stream chan refugenet.Thermostat) {
+func serve(host string, thermoStream chan rnet.Thermostat) {
 	// localTime := time.Location{}
 	pd := &PageData{
 		Mutex:       &sync.Mutex{},
-		Thermostats: make(map[string]refugenet.Thermostat, 3),
+		Thermostats: make(map[string]rnet.Thermostat, 3),
 	}
 
 	updates := make(chan []byte, 10)
 
 	go func() {
-		for td := range stream {
+		for td := range thermoStream {
 			// Update our cached thermostats
 			pd.Lock()
 			pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = td
 			pd.Unlock()
 
 			// Now push the update to all connected websockets
-			d, err := json.Marshal(td)
+			d, err := json.Marshal(&Update{Thermostat: &td})
+			log.Printf("Writing: %v", string(d))
 			if err != nil {
 				log.Printf("Failed to marshal thermal data to json: %s", err)
 			}
@@ -81,7 +84,7 @@ func serve(host string, stream chan refugenet.Thermostat) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Technically not sending anything over template right now...
-		tmpl, err := template.ParseFiles("index.html")
+		tmpl, err := template.ParseFiles("./assets/index.html")
 		if err != nil {
 			log.Fatalf("unable to parse html: %s", err)
 		}
@@ -122,7 +125,7 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 	}()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		c := clientStream(w, r)
+		c := clientStream(w, r, pd)
 		pd.Lock()
 		for _, v := range pd.Thermostats {
 			c.WriteJSON(v)
@@ -134,26 +137,60 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 	}
 }
 
-type changeRequest struct {
+type Update struct {
+	Thermostat *rnet.Thermostat
+	Fireplace  *rnet.Fireplace
+}
+
+type Request struct {
+	Climate *ClimateChange
+}
+
+type ClimateChange struct {
 	climate.Settings
 	Name string // name of thermo to change
 }
 
-func clientStream(w http.ResponseWriter, r *http.Request) *websocket.Conn {
+func clientStream(w http.ResponseWriter, r *http.Request, pd *PageData) *websocket.Conn {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return nil
 	}
+
 	go func() {
 		for {
-			v := &changeRequest{}
+			v := &Request{}
 			err := c.ReadJSON(v)
 			if err != nil {
 				log.Println("read err:", err)
 				break
 			}
-			log.Printf("recv: %#v", v)
+			if v.Climate != nil {
+				log.Printf("Attempt to send message to thermostat here!")
+				log.Printf("Climate: %#v", v.Climate)
+
+				var addr string
+				pd.Lock()
+				addr = pd.Thermostats[v.Climate.Name].Addr
+				pd.Unlock()
+
+				raddr, err := net.ResolveUDPAddr("udp", addr)
+				if err != nil {
+					log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+				}
+
+				msg, _ := json.Marshal(&v.Climate.Settings)
+				log.Printf("Sending: '%s' to (%s)'%s'", string(msg), addr, raddr)
+				conn, err := net.DialUDP("udp", nil, raddr)
+				if err != nil {
+					log.Printf("Failed to open UDP: %s", err)
+					continue
+				}
+				conn.Write(msg)
+				conn.Close()
+
+			}
 			// TODO: actually make request to remote thermostat!
 		}
 		c.Close()

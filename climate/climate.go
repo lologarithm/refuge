@@ -4,15 +4,16 @@ import (
 	"fmt"
 
 	rpio "github.com/stianeikeland/go-rpio"
-	"gitlab.com/lologarithm/thermo/sensor"
+	"gitlab.com/lologarithm/refuge/sensor"
 )
 
 type Mode byte
 
 const (
-	OffMode  Mode = iota // Disable
-	AutoMode             // Manage temp range
-	FanMode              // Just run fan
+	ModeUnset Mode = iota
+	ModeOff
+	ModeAuto // Manage temp range
+	ModeFan  // Just run fan
 )
 
 type Settings struct {

@@ -27,7 +27,9 @@
 <body>
   <div><p style="font-size:3em">Refuge Home Automation</p></div>
   <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
-  <div class="thermo" style="display:none" id="thermosample"><strong>THERMO NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
+  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
+  <!-- This is a hidden template for fireplaces -->
+  <div class="fire" style="display:none" id="firesample"><strong>NAME</strong><button>⬆</button></div>
 </body>
 <script>
   var ws = new WebSocket("ws://" + location.host + "/stream");
@@ -38,8 +40,15 @@
 
   // Listen for messages
   ws.addEventListener('message', function (event) {
-    var thdata = JSON.parse(event.data);
-    var thid = "thermo" + thdata.Name.replace(" ", "");
+    var msg = JSON.parse(event.data);
+    if (msg.Thermostat != null) {
+      updateThermo(msg.Thermostat);
+    }
+  });
+
+  function updateThermo(thdata) {
+    var thname = thdata.Name.replace(" ", "");
+    var thid = "thermo" + thname;
     var thdiv = document.getElementById(thid);
 
     if (thdiv == null) {
@@ -48,13 +57,16 @@
       thdiv.id = thid;
       thdiv.style.display = "block";
       thdiv.childNodes[0].innerText = thdata.Name;
+
       // TODO: make better selectors
       thdiv.childNodes[3].addEventListener("click", function(){
-        ws.send("{}");
+        var current = Number.parseFloat(thdiv.childNodes[4].innerText);
+        var msg = JSON.stringify({Climate: {Name: thname, High: current+1, Low: current-2}})
+        ws.send(msg);
         console.log("clicked up");
       });
       thdiv.childNodes[5].addEventListener("click", function(){
-        ws.send("{}");
+        ws.send("{Climate: {\"Name\":" + thid +"}}");
         console.log("clicked down");
       });
       document.body.appendChild(thdiv);
@@ -63,6 +75,6 @@
     thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp;
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
     thdiv.childNodes[4].innerText = thdata.Target;
-  });
+  }
 </script>
 </html>
