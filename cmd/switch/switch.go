@@ -11,7 +11,7 @@ import (
 
 func main() {
 	cpin := flag.Int("cpin", 4, "input pin to control")
-	name := flag.String("name", "", "name of fireplace")
+	name := flag.String("name", "", "name of device to switch")
 	flag.Parse()
 
 	fmt.Printf("Name: %s, Control Pin: %d\n", *name, *cpin)
@@ -30,15 +30,15 @@ func run(name string, cpin int) {
 	if err != nil {
 		log.Printf("Unable to use real pins...")
 		for v := range stream {
-			log.Printf("Setting fake fireplace to: %v", v)
+			log.Printf("Setting fake switch to: %v", v)
 		}
 	}
-	// Set Fireplace to off
+	// Set switch to off
 	control := rpio.Pin(cpin)
 	control.Mode(rpio.Output)
 	control.High()
 
-	// Control the fireplace!
+	// Control the switch!
 	for v := range stream {
 		if v {
 			control.Low()
