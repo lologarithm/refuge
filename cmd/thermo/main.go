@@ -42,14 +42,9 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	}
 
 	addrs := rnet.MyIPs()
-	log.Printf("MyAddrs: %#s", addrs)
+	log.Printf("MyAddrs: %#v", addrs)
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
-	if err != nil {
-		log.Fatalf("Failed to resolve udp: %s", err)
-	}
-
-	baddr, err := net.ResolveUDPAddr("udp", rnet.ThermoSpace)
 	if err != nil {
 		log.Fatalf("Failed to resolve udp: %s", err)
 	}
@@ -71,16 +66,19 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 			ts := rnet.Thermostat{
 				Name:     name,
 				Addr:     directAddr.String(),
-				Target:   (cs.High + cs.Low) / 2,
+				Fan:      uint8(cs.Mode),
+				High:     cs.High,
+				Low:      cs.Low,
 				Temp:     d.Temp,
 				Humidity: d.Humi,
 			}
-			msg, err := json.Marshal(ts)
-			if err != nil {
-				fmt.Printf("Failed to marshal climate reading: %s", err)
+			msg, merr := json.Marshal(ts)
+			if merr != nil {
+				fmt.Printf("Failed to marshal climate reading: %s", merr)
+				continue
 			}
 			fmt.Printf("Climate reading: %#v", d)
-			direct.WriteToUDP(msg, baddr)
+			direct.WriteToUDP(msg, rnet.RefugeMessages)
 			// enc.Encode(d)
 		}
 	}()
@@ -88,9 +86,10 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	go func() {
 		for {
 			v := climate.Settings{}
-			err := dec.Decode(&v)
-			if err != nil {
-				//lol
+			derr := dec.Decode(&v)
+			if derr != nil {
+				fmt.Printf("Failed to decode climate setting request: %s", derr)
+				continue
 			}
 			fmt.Printf("Climate set attempt: %#v", v)
 			set(v)

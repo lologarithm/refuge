@@ -20,3 +20,9 @@ GOARCH=arm
 GOARM=6 (for raspberry pi zero w)
 
 Then you can upload the binary to the pi and run from there.
+
+### Plans
+1. Probably renamed rnet to some kind of model. This is becoming the definition of device types and how they communicate with central refuge webserver.
+2. Generalize devices in the rnet/model package. We can probably start to generalize a device to have sensors and controls. Then have different kinds of those devices.
+3. With the generalization of devices we might be able to then also generalize the web server and interface to handle more generic features
+4. Replace current web interface from being a list of devices to instead being a map. Then we can define 'rooms' or spaces and what devices are found in each room. This should make it easier to figure out what sensor data is coming from where! 

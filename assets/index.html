@@ -1,7 +1,7 @@
 <html>
 <head>
   <style>
-    .fire {
+    .switch {
       background-color: #FFEEDD;
       text-align: center;
       padding-bottom: 10px;
@@ -11,7 +11,7 @@
       padding-bottom: 2vw;
       margin-bottom: 20px;
     }
-    .fire button {
+    .switch button {
       padding: 0;
       margin-left: 2vw;
       margin-right: 2vw;
@@ -46,8 +46,8 @@
   <div><p style="font-size:3em">Refuge Home Automation</p></div>
   <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
   <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
-  <!-- This is a hidden template for fireplaces -->
-  <div class="fire" style="display:none" id="firesample"><strong>NAME</strong><br /><button></button></div>
+  <!-- This is a hidden template for switches -->
+  <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
 </body>
 <script>
   var ws = new WebSocket("ws://" + location.host + "/stream");
@@ -61,26 +61,26 @@
     var msg = JSON.parse(event.data);
     if (msg.Thermostat != null) {
       updateThermo(msg.Thermostat);
-    } else if (msg.Fireplace != null) {
-      console.log("Fireplace update: ", msg.Fireplace)
-      updateFire(msg.Fireplace);
+    } else if (msg.Switch != null) {
+      console.log("Switch update: ", msg.Switch)
+      updateSwitch(msg.Switch);
     }
   });
 
-  function updateFire(thdata) {
-    var thid = "thermo" + thdata.Name.replace(" ", "");
+  function updateSwitch(thdata) {
+    var thid = "switch" + thdata.Name.replace(" ", "");
     var thdiv = document.getElementById(thid);
 
     if (thdiv == null) {
-      console.log("Couldn't find existing div for fireplace " + thdata.Name + "... Constructing now: ", thid, thdata);
-      thdiv = document.getElementById("firesample").cloneNode(true)
+      console.log("Couldn't find existing div for switch " + thdata.Name + "... Constructing now: ", thid, thdata);
+      thdiv = document.getElementById("switchsample").cloneNode(true)
       thdiv.id = thid;
       thdiv.style.display = "block";
       thdiv.childNodes[0].innerText = thdata.Name;
 
       // TODO: make better selectors
       thdiv.childNodes[2].addEventListener("click", function(){
-        var msg = JSON.stringify({Fireplace: {Name: thdata.Name}})
+        var msg = JSON.stringify({Switch: {Name: thdata.Name}})
         ws.send(msg);
       });
       document.body.appendChild(thdiv);

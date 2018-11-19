@@ -17,19 +17,19 @@ import (
 type PageData struct {
 	*sync.Mutex // Mutex for the thermostat list
 	Thermostats map[string]rnet.Thermostat
-	Fireplace   map[string]rnet.Fireplace
+	Fireplace   map[string]rnet.Switch
 }
 
 // Update notifies websocket listeners of updates to thermostats and fireplaces
 type Update struct {
 	Thermostat *rnet.Thermostat
-	Fireplace  *rnet.Fireplace
+	Fireplace  *rnet.Switch
 }
 
 // Request is sent from websocket client to server to request change to someting
 type Request struct {
 	Climate   *ClimateChange
-	Fireplace *rnet.Fireplace
+	Fireplace *rnet.Switch
 }
 
 type ClimateChange struct {
@@ -37,12 +37,12 @@ type ClimateChange struct {
 	Name string // name of thermo to change
 }
 
-func serve(host string, thermoStream chan rnet.Thermostat, fireStream chan rnet.Fireplace) {
+func serve(host string, thermoStream chan rnet.Thermostat, switchStream chan rnet.Switch) {
 	// localTime := time.Location{}
 	pd := &PageData{
 		Mutex:       &sync.Mutex{},
 		Thermostats: make(map[string]rnet.Thermostat, 3),
-		Fireplace:   map[string]rnet.Fireplace{},
+		Fireplace:   map[string]rnet.Switch{},
 	}
 
 	updates := make(chan []byte, 10)
@@ -63,7 +63,7 @@ func serve(host string, thermoStream chan rnet.Thermostat, fireStream chan rnet.
 					log.Printf("Failed to marshal thermal data to json: %s", err)
 				}
 				updates <- d
-			case fd := <-fireStream:
+			case fd := <-switchStream:
 				// Update our cached thermostats
 				pd.Lock()
 				pd.Fireplace[strings.Replace(fd.Name, " ", "", -1)] = fd
@@ -184,7 +184,7 @@ func toggleFireplace(name string, pd *PageData) {
 		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
 	}
 
-	msg, _ := json.Marshal(rnet.Fireplace{Name: name, On: !state})
+	msg, _ := json.Marshal(rnet.Switch{Name: name, On: !state})
 	log.Printf("Sending: '%s' to (%s)'%s'", string(msg), addr, raddr)
 	conn, err := net.DialUDP("udp", nil, raddr)
 	if err != nil {

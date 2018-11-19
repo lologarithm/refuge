@@ -22,15 +22,33 @@ func init() {
 	failErr("resolving refuge udp addr", err)
 }
 
+// Portal represents any door/window that can be monitored or open/closed
+type Portal struct {
+	Name string
+	Addr string
+
+	State uint8 // Can signal current state or intended state. Unknown, Closed, Open
+}
+
+// Thermostat is a very specific device -- a thermostat
+// Includes current reading as well as temp targets
 type Thermostat struct {
-	Name     string  // Name of thermostat
-	Addr     string  // Address of thermostat
-	Target   float32 // Targeted temp
+	Name string // Name of thermostat
+	Addr string // Address of thermostat
+
+	// Settings
+	High float32 // Temp Max
+	Low  float32 // Temp Minimum
+	Fan  uint8   // If Fan is unset, off, on, or auto
+
+	// Readings
 	Temp     float32 // Last temp reading
 	Humidity float32 // Last humidity reading
 }
 
-type Fireplace struct {
+// Switch represents any devices that can be switched on/off
+// Examples: Lights, Gas Fireplace, etc
+type Switch struct {
 	Name string // Name of fireplace
 	Addr string // Address of fireplace
 	On   bool
@@ -38,8 +56,9 @@ type Fireplace struct {
 
 // Msg is what is sent over the broadcast network
 type Msg struct {
-	Fireplace  *Fireplace
+	Switch     *Switch
 	Thermostat *Thermostat
+	Portal     *Portal
 }
 
 // Ping is a request for discovery of devices

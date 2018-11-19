@@ -8,9 +8,9 @@ import (
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
-func monitor() (chan rnet.Thermostat, chan rnet.Fireplace) {
+func monitor() (chan rnet.Thermostat, chan rnet.Switch) {
 	tstream := make(chan rnet.Thermostat, 10)
-	fstream := make(chan rnet.Fireplace, 10)
+	fstream := make(chan rnet.Switch, 10)
 
 	udp, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeMessages)
 	if err != nil {
@@ -31,9 +31,9 @@ func monitor() (chan rnet.Thermostat, chan rnet.Fireplace) {
 			if reading.Thermostat != nil {
 				log.Printf("New reading: %#v", reading.Thermostat)
 				tstream <- *reading.Thermostat
-			} else if reading.Fireplace != nil {
-				log.Printf("New fireplace: %#v", reading.Fireplace)
-				fstream <- *reading.Fireplace
+			} else if reading.Switch != nil {
+				log.Printf("New Switch: %#v", reading.Switch)
+				fstream <- *reading.Switch
 				log.Printf("fireplace update sent...")
 			} else {
 				log.Printf("Unknown update msg: %#v", reading)

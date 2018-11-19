@@ -11,7 +11,7 @@ import (
 
 func myUDPConn() *net.UDPConn {
 	addrs := rnet.MyIPs()
-	log.Printf("MyAddrs: %#s", addrs)
+	log.Printf("MyAddrs: %#v", addrs)
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
 	if err != nil {
@@ -25,8 +25,8 @@ func myUDPConn() *net.UDPConn {
 	return direct
 }
 
-func runNetwork(name string) chan bool {
-	stream := make(chan bool, 1)
+func runNetwork(name string) chan PortalState {
+	stream := make(chan PortalState, 1)
 
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
@@ -66,12 +66,12 @@ func runNetwork(name string) chan bool {
 				log.Printf("Failed to decode fireplace setting: %s", err)
 				continue
 			}
-			log.Printf("Setting fireplace to: %#v", v)
-			stream <- v.Open
+			log.Printf("Setting door to: %#v", v)
+			stream <- PortalState(v.State)
 
 			mut.Lock()
 			// Write to network our new state
-			state.Portal.Open = v.Open
+			state.Portal.State = v.State
 
 			// Re-marshal and broadcast new state
 			msg, _ = json.Marshal(state)
