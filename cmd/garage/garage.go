@@ -29,7 +29,8 @@ func main() {
 
 func run(name string, cpin int, spin int) {
 	// Listen to network
-	stream := runNetwork(name)
+	stateStream := make(chan rnet.PortalState, 1)
+	stream := runNetwork(name, stateStream)
 
 	err := rpio.Open()
 	if err != nil {
@@ -51,11 +52,13 @@ func run(name string, cpin int, spin int) {
 		sensor.PullDown() // Make sure default state is low
 		sensor.Mode(rpio.Input) // Now read for state to go high
 
+		// Sensor listener stream
 		go func() {
 			for {
-				// Check to see if
-				if sensor.Read() == rpio.High {
+				// Check to see if portal is open
+				if sensor.Read() == rpio.High && rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateClosed {
 					atomic.StoreUint64(&state, uint64(rnet.PortalStateClosed))
+					stateStream<-rnet.PortalStateClosed
 				}
 				time.Sleep(time.Second)
 			}
@@ -64,13 +67,11 @@ func run(name string, cpin int, spin int) {
 
 	// Control the portal!
 	for v := range stream {
-		// If v != current state, toggle the control
-		// Hopefully this is how garage door openers work
+		// If v != current state, trigger the garage to open
 		if v != rnet.PortalState(atomic.LoadUint64(&state)) {
 			control.Low()
 			time.Sleep(time.Millisecond * 100)
 			control.High()
 		}
 	}
-
 }

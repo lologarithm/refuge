@@ -25,8 +25,8 @@ func myUDPConn() *net.UDPConn {
 	return direct
 }
 
-func runNetwork(name string) chan rnet.PortalState {
-	stream := make(chan rnet.PortalState, 1)
+func runNetwork(name string, sensorStream chan rnet.PortalState) chan rnet.PortalState {
+	stream := make(chan rnet.PortalState, 1) // output stream
 
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
@@ -46,6 +46,7 @@ func runNetwork(name string) chan rnet.PortalState {
 	// Broadcast we are online!
 	direct.WriteToUDP(msg, rnet.RefugeMessages)
 
+	// Ping listener goroutine
 	go func() {
 		for {
 			v := rnet.Ping{}
@@ -58,6 +59,21 @@ func runNetwork(name string) chan rnet.PortalState {
 		}
 	}()
 
+	// Sensor broadcast goroutine
+	go func() {
+		ns := <-sensorStream
+		mut.Lock()
+		// Write to network our new state
+		state.Portal.State = ns
+
+		// Re-marshal and broadcast new state
+		msg, _ = json.Marshal(state)
+		log.Printf("Broadcasting: %s", string(msg))
+		direct.WriteToUDP(msg, rnet.RefugeMessages)
+		mut.Unlock()
+	}()
+
+	// Request listener goroutine
 	go func() {
 		for {
 			v := &rnet.Portal{}
@@ -68,16 +84,6 @@ func runNetwork(name string) chan rnet.PortalState {
 			}
 			log.Printf("Setting door to: %#v", v)
 			stream <- rnet.PortalState(v.State)
-
-			mut.Lock()
-			// Write to network our new state
-			state.Portal.State = v.State
-
-			// Re-marshal and broadcast new state
-			msg, _ = json.Marshal(state)
-			log.Printf("Broadcasting: %s", string(msg))
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			mut.Unlock()
 		}
 	}()
 	return stream

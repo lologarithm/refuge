@@ -66,7 +66,7 @@
   <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
   <!-- This is a hidden template for switches -->
   <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
-  <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><button></button></div>
+  <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><span>STATE</span><button>Toggle</button></div>
 </body>
 <script>
   var ws = new WebSocket("ws://" + location.host + "/stream");
@@ -108,9 +108,11 @@
       document.body.appendChild(thdiv);
     }
     // Now update the values for current temp/hum and target.
-    var text = "On"
-    if (!thdata.On) {
-      text = "Off"
+    var text = "Unknown"
+    if (thdata.State == 1) {
+      text = "Open"
+    } else if (thdata.State == 2) {
+      text = "Closed"
     }
     thdiv.childNodes[2].innerText = text;
   }
