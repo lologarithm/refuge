@@ -101,7 +101,7 @@
       thdiv.childNodes[0].innerText = thdata.Name;
 
       // TODO: make better selectors
-      thdiv.childNodes[2].addEventListener("click", function(){
+      thdiv.childNodes[3].addEventListener("click", function(){
         var msg = JSON.stringify({Portal: {Name: thdata.Name}})
         ws.send(msg);
       });

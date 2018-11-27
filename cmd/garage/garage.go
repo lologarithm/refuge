@@ -43,7 +43,7 @@ func run(name string, cpin int, spin int) {
 	// Set switch to off
 	control := rpio.Pin(cpin)
 	control.Mode(rpio.Output)
-	control.Low()
+	control.High()
 
 	state := uint64(rnet.PortalStateUnknown)
 
