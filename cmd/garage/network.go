@@ -25,8 +25,8 @@ func myUDPConn() *net.UDPConn {
 	return direct
 }
 
-func runNetwork(name string) chan PortalState {
-	stream := make(chan PortalState, 1)
+func runNetwork(name string) chan rnet.PortalState {
+	stream := make(chan rnet.PortalState, 1)
 
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
@@ -67,7 +67,7 @@ func runNetwork(name string) chan PortalState {
 				continue
 			}
 			log.Printf("Setting door to: %#v", v)
-			stream <- PortalState(v.State)
+			stream <- rnet.PortalState(v.State)
 
 			mut.Lock()
 			// Write to network our new state

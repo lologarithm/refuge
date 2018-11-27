@@ -27,8 +27,19 @@ type Portal struct {
 	Name string
 	Addr string
 
-	State uint8 // Can signal current state or intended state. Unknown, Closed, Open
+	State PortalState // Can signal current state or intended state. Unknown, Closed, Open
 }
+
+// PortalState is the state of the portal (open/closed)
+type PortalState uint64
+
+// Enum of portal states
+const (
+	PortalStateUnknown PortalState = iota
+	PortalStateClosed
+	PortalStateOpen
+)
+
 
 // Thermostat is a very specific device -- a thermostat
 // Includes current reading as well as temp targets

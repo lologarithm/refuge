@@ -6,14 +6,17 @@ import (
 	"log"
 	"os"
 	"time"
+	"sync/atomic"
+
+	"gitlab.com/lologarithm/refuge/rnet"
 
 	rpio "github.com/stianeikeland/go-rpio"
 )
 
 func main() {
-	cpin := flag.Int("cpin", 11, "input pin to control")
-	spin := flag.Int("cpin", 17, "input pin to read if portal is open")
-	name := flag.String("name", "", "name of device to switch")
+	cpin := flag.Int("cpin", 24, "input pin to control")
+	spin := flag.Int("spin", 4, "input pin to read if portal is open")
+	name := flag.String("name", "", "name of portal")
 	flag.Parse()
 
 	fmt.Printf("Name: %s, Control Pin: %d, Sensor Pin: %d\n", *name, *cpin, *spin)
@@ -23,16 +26,6 @@ func main() {
 	}
 	run(*name, *cpin, *spin)
 }
-
-// PortalState is the state of the portal (open/closed)
-type PortalState uint8
-
-// Enum of portal states
-const (
-	PortalStateUnknown PortalState = iota
-	PortalStateClosed
-	PortalStateOpen
-)
 
 func run(name string, cpin int, spin int) {
 	// Listen to network
@@ -51,19 +44,20 @@ func run(name string, cpin int, spin int) {
 	control.Mode(rpio.Output)
 	control.Low()
 
-	state := PortalStateUnknown
+	state := uint64(rnet.PortalStateUnknown)
 
 	if spin > 0 {
 		sensor := rpio.Pin(spin)
-		sensor.Mode(rpio.Input)
+		sensor.PullDown() // Make sure default state is low
+		sensor.Mode(rpio.Input) // Now read for state to go high
 
 		go func() {
 			for {
 				// Check to see if
 				if sensor.Read() == rpio.High {
-					state = PortalStateClosed
+					atomic.StoreUint64(&state, uint64(rnet.PortalStateClosed))
 				}
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Second)
 			}
 		}()
 	}
@@ -72,10 +66,10 @@ func run(name string, cpin int, spin int) {
 	for v := range stream {
 		// If v != current state, toggle the control
 		// Hopefully this is how garage door openers work
-		if v != state {
-			control.High()
-			time.Sleep(time.Millisecond * 20)
+		if v != rnet.PortalState(atomic.LoadUint64(&state)) {
 			control.Low()
+			time.Sleep(time.Millisecond * 100)
+			control.High()
 		}
 	}
 

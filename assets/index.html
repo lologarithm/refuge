@@ -1,6 +1,24 @@
 <html>
 <head>
   <style>
+    .portal {
+      background-color: #99EEFF;
+      text-align: center;
+      padding-bottom: 10px;
+      padding-top: 10px;
+      font-size: calc(16px + 2vw);
+      padding-top: 2vw;
+      padding-bottom: 2vw;
+      margin-bottom: 20px;
+    }
+    .portal button {
+      padding: 0;
+      margin-left: 2vw;
+      margin-right: 2vw;
+      height: 6vw;
+      width: 10vw;
+      font-size: calc(16px + 1vw);
+    }
     .switch {
       background-color: #FFEEDD;
       text-align: center;
@@ -48,6 +66,7 @@
   <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
   <!-- This is a hidden template for switches -->
   <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
+  <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><button></button></div>
 </body>
 <script>
   var ws = new WebSocket("ws://" + location.host + "/stream");
@@ -64,8 +83,37 @@
     } else if (msg.Switch != null) {
       console.log("Switch update: ", msg.Switch)
       updateSwitch(msg.Switch);
+    } else if (msg.Portal != null) {
+      console.log("Portal update: ", msg.Portal)
+      updatePortal(msg.Portal);
     }
   });
+
+  function updatePortal(thdata) {
+    var thid = "portal" + thdata.Name.replace(" ", "");
+    var thdiv = document.getElementById(thid);
+
+    if (thdiv == null) {
+      console.log("Couldn't find existing div for portal " + thdata.Name + "... Constructing now: ", thid, thdata);
+      thdiv = document.getElementById("portalsample").cloneNode(true)
+      thdiv.id = thid;
+      thdiv.style.display = "block";
+      thdiv.childNodes[0].innerText = thdata.Name;
+
+      // TODO: make better selectors
+      thdiv.childNodes[2].addEventListener("click", function(){
+        var msg = JSON.stringify({Portal: {Name: thdata.Name}})
+        ws.send(msg);
+      });
+      document.body.appendChild(thdiv);
+    }
+    // Now update the values for current temp/hum and target.
+    var text = "On"
+    if (!thdata.On) {
+      text = "Off"
+    }
+    thdiv.childNodes[2].innerText = text;
+  }
 
   function updateSwitch(thdata) {
     var thid = "switch" + thdata.Name.replace(" ", "");

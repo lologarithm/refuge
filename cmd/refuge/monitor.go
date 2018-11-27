@@ -8,9 +8,8 @@ import (
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
-func monitor() (chan rnet.Thermostat, chan rnet.Switch) {
-	tstream := make(chan rnet.Thermostat, 10)
-	fstream := make(chan rnet.Switch, 10)
+func monitor() (chan rnet.Msg) {
+	tstream := make(chan rnet.Msg, 10)
 
 	udp, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeMessages)
 	if err != nil {
@@ -28,20 +27,22 @@ func monitor() (chan rnet.Thermostat, chan rnet.Switch) {
 				log.Printf("Failed to decode json msg: %s", err)
 				continue
 			}
-			if reading.Thermostat != nil {
+			switch {
+			case reading.Thermostat != nil:
 				log.Printf("New reading: %#v", reading.Thermostat)
-				tstream <- *reading.Thermostat
-			} else if reading.Switch != nil {
+			case reading.Switch != nil:
 				log.Printf("New Switch: %#v", reading.Switch)
-				fstream <- *reading.Switch
-				log.Printf("fireplace update sent...")
-			} else {
-				log.Printf("Unknown update msg: %#v", reading)
+			case reading.Portal != nil:
+				log.Printf("New Portal: %#v", reading.Portal)
+			default:
+				log.Printf("Unknown message: %#v", reading)
+				continue
 			}
+			tstream <- reading
 		}
 	}()
 	ping()
-	return tstream, fstream
+	return tstream
 }
 
 func ping() {
