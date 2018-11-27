@@ -40,7 +40,7 @@ func runNetwork(name string) chan bool {
 	broadDec := json.NewDecoder(broadcasts)
 
 	mut := &sync.Mutex{}
-	state := &rnet.Msg{Fireplace: &rnet.Fireplace{Name: name, Addr: direct.LocalAddr().String()}}
+	state := &rnet.Msg{Switch: &rnet.Switch{Name: name, Addr: direct.LocalAddr().String()}}
 	msg, _ := json.Marshal(state)
 	log.Printf("Broadcasting %s to %s", string(msg), rnet.RefugeMessages.String())
 	// Broadcast we are online!
@@ -60,7 +60,7 @@ func runNetwork(name string) chan bool {
 
 	go func() {
 		for {
-			v := &rnet.Fireplace{}
+			v := &rnet.Switch{}
 			err := dec.Decode(&v)
 			if err != nil {
 				log.Printf("Failed to decode fireplace setting: %s", err)
@@ -71,7 +71,7 @@ func runNetwork(name string) chan bool {
 
 			mut.Lock()
 			// Write to network our new state
-			state.Fireplace.On = v.On
+			state.Switch.On = v.On
 
 			// Re-marshal and broadcast new state
 			msg, _ = json.Marshal(state)
