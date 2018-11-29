@@ -61,16 +61,18 @@ func runNetwork(name string, sensorStream chan rnet.PortalState) chan rnet.Porta
 
 	// Sensor broadcast goroutine
 	go func() {
-		ns := <-sensorStream
-		mut.Lock()
-		// Write to network our new state
-		state.Portal.State = ns
+		for {
+			ns := <-sensorStream
+			mut.Lock()
+			// Write to network our new state
+			state.Portal.State = ns
 
-		// Re-marshal and broadcast new state
-		msg, _ = json.Marshal(state)
-		log.Printf("Broadcasting: %s", string(msg))
-		direct.WriteToUDP(msg, rnet.RefugeMessages)
-		mut.Unlock()
+			// Re-marshal and broadcast new state
+			msg, _ = json.Marshal(state)
+			log.Printf("Broadcasting: %s", string(msg))
+			direct.WriteToUDP(msg, rnet.RefugeMessages)
+			mut.Unlock()
+		}
 	}()
 
 	// Request listener goroutine

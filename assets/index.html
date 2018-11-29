@@ -110,9 +110,9 @@
     // Now update the values for current temp/hum and target.
     var text = "Unknown"
     if (thdata.State == 1) {
-      text = "Open"
-    } else if (thdata.State == 2) {
       text = "Closed"
+    } else if (thdata.State == 2) {
+      text = "Open"
     }
     thdiv.childNodes[2].innerText = text;
   }

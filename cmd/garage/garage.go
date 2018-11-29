@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 	"sync/atomic"
-
-	"gitlab.com/lologarithm/refuge/rnet"
+	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
+	"gitlab.com/lologarithm/refuge/rnet"
 )
 
 func main() {
@@ -49,16 +48,26 @@ func run(name string, cpin int, spin int) {
 
 	if spin > 0 {
 		sensor := rpio.Pin(spin)
-		sensor.PullDown() // Make sure default state is low
+		sensor.PullDown()       // Make sure default state is low
 		sensor.Mode(rpio.Input) // Now read for state to go high
 
 		// Sensor listener stream
 		go func() {
 			for {
 				// Check to see if portal is open
-				if sensor.Read() == rpio.High && rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateClosed {
-					atomic.StoreUint64(&state, uint64(rnet.PortalStateClosed))
-					stateStream<-rnet.PortalStateClosed
+				sr := sensor.Read()
+				if sr == rpio.High {
+					if rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateClosed {
+						fmt.Printf("Door Closed. Updating network.\n")
+						atomic.StoreUint64(&state, uint64(rnet.PortalStateClosed))
+						stateStream <- rnet.PortalStateClosed
+					}
+				} else {
+					if rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateOpen {
+						fmt.Printf("Door Opened. Updating network.\n")
+						atomic.StoreUint64(&state, uint64(rnet.PortalStateOpen))
+						stateStream <- rnet.PortalStateOpen
+					}
 				}
 				time.Sleep(time.Second)
 			}
