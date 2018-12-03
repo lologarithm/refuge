@@ -63,7 +63,7 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	go func() {
 		for d := range stream {
 			climateStream <- d
-			ts := rnet.Thermostat{
+			ts := rnet.Msg{Thermostat: &rnet.Thermostat{
 				Name:     name,
 				Addr:     directAddr.String(),
 				Fan:      uint8(cs.Mode),
@@ -71,7 +71,7 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 				Low:      cs.Low,
 				Temp:     d.Temp,
 				Humidity: d.Humi,
-			}
+			}}
 			msg, merr := json.Marshal(ts)
 			if merr != nil {
 				fmt.Printf("Failed to marshal climate reading: %s", merr)

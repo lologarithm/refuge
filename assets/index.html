@@ -50,12 +50,20 @@
     .thermo label {
       font-size: 4vw;
     }
+    .therminput {
+      padding: 0;
+      margin-left: 1vw;
+      margin-right: 1vw;
+      height: 7vw;
+      width: 15vw;
+      font-size: calc(16px + 3vw);
+    }
     .thermo button {
       padding: 0;
       margin-left: 2vw;
       margin-right: 2vw;
-      height: 8vw;
-      width: 8vw;
+      height: 7vw;
+      width: 10vw;
       font-size: calc(16px + 3vw);
     }
   </style>
@@ -63,7 +71,7 @@
 <body>
   <div><p style="font-size:3em">Refuge Home Automation</p></div>
   <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
-  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><button>⬆</button><label>21</label><button>⬇</button></div>
+  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><input class="therminput" type="text" value="LOW"></input><input class="therminput" type="text" value="HIGH"></input><button>Set</button></div>
   <!-- This is a hidden template for switches -->
   <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
   <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><span>STATE</span><button>Toggle</button></div>
@@ -148,21 +156,19 @@
     var thdiv = document.getElementById(thid);
 
     if (thdiv == null) {
-      console.log("Couldn't find existing div for thermostat" + thdata.Name + "... Constructing now: ", thid, thdata);
+      console.log("Couldn't find existing div for thermostat: " + thdata.Name + "... Constructing now: ", thid, thdata);
       thdiv = document.getElementById("thermosample").cloneNode(true)
       thdiv.id = thid;
       thdiv.style.display = "block";
       thdiv.childNodes[0].innerText = thdata.Name;
 
+      // <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><textbox>LOW</textbox><textbox>HIGH</textbox><button>Set</button></div>
+
       // TODO: make better selectors
-      thdiv.childNodes[3].addEventListener("click", function(){
-        var current = Number.parseFloat(thdiv.childNodes[4].innerText);
-        var msg = JSON.stringify({Climate: {Name: thdata.Name, High: current+2, Low: current}})
-        ws.send(msg);
-      });
       thdiv.childNodes[5].addEventListener("click", function(){
-        var current = Number.parseFloat(thdiv.childNodes[4].innerText);
-        var msg = JSON.stringify({Climate: {Name: thdata.Name, High: current, Low: current-2}})
+        var low = Number.parseFloat(thdiv.childNodes[3].value);
+        var high = Number.parseFloat(thdiv.childNodes[4].value);
+        var msg = JSON.stringify({Climate: {Name: thdata.Name, High: high, Low: low}})
         ws.send(msg);
       });
       document.body.appendChild(thdiv);
@@ -170,7 +176,8 @@
     // Now update the values for current temp/hum and target.
     thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp;
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
-    thdiv.childNodes[4].innerText = thdata.Target;
+    thdiv.childNodes[3].value = thdata.Low;
+    thdiv.childNodes[4].value = thdata.High;
   }
 </script>
 </html>
