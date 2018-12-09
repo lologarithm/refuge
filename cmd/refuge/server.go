@@ -17,15 +17,15 @@ import (
 type PageData struct {
 	*sync.Mutex // Mutex for the thermostat list
 	Thermostats map[string]rnet.Thermostat
-	Switches   map[string]rnet.Switch
-	Portals 		map[string]rnet.Portal
+	Switches    map[string]rnet.Switch
+	Portals     map[string]rnet.Portal
 }
 
 // Request is sent from websocket client to server to request change to someting
 type Request struct {
-	Climate   *ClimateChange
-	Switch *rnet.Switch
-	Portal 		*rnet.Portal
+	Climate *ClimateChange
+	Switch  *rnet.Switch
+	Portal  *rnet.Portal
 }
 
 type ClimateChange struct {
@@ -38,8 +38,8 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	pd := &PageData{
 		Mutex:       &sync.Mutex{},
 		Thermostats: make(map[string]rnet.Thermostat, 3),
-		Switches:   map[string]rnet.Switch{},
-		Portals:   map[string]rnet.Portal{},
+		Switches:    map[string]rnet.Switch{},
+		Portals:     map[string]rnet.Portal{},
 	}
 
 	updates := make(chan []byte, 10)
@@ -177,6 +177,7 @@ func clientStream(w http.ResponseWriter, r *http.Request, pd *PageData) *websock
 func togglePortal(name string, pd *PageData) {
 	var addr string
 	state := rnet.PortalStateOpen
+	name = strings.Replace(name, " ", "", -1)
 
 	pd.Lock()
 	addr = pd.Portals[name].Addr
@@ -204,7 +205,7 @@ func togglePortal(name string, pd *PageData) {
 func toggleSwitch(name string, pd *PageData) {
 	var addr string
 	var state bool
-
+	name = strings.Replace(name, " ", "", -1)
 	pd.Lock()
 	addr = pd.Switches[name].Addr
 	state = pd.Switches[name].On
@@ -227,6 +228,7 @@ func toggleSwitch(name string, pd *PageData) {
 }
 
 func writeNewTherm(c ClimateChange, pd *PageData) {
+	c.Name = strings.Replace(c.Name, " ", "", -1)
 	log.Printf("Climate: %#v", c)
 	var addr string
 

@@ -34,7 +34,9 @@ func main() {
 func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	stream := make(chan sensor.Measurement, 10)
 	climateStream := make(chan sensor.Measurement, 10)
-	set := func(_ climate.Settings) {}
+	set := func(_ climate.Settings) {
+
+	}
 	cs := climate.Settings{
 		Low:  15.55,
 		High: 26.66,
@@ -77,7 +79,7 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 				fmt.Printf("Failed to marshal climate reading: %s", merr)
 				continue
 			}
-			fmt.Printf("Climate reading: %#v", d)
+			fmt.Printf("Climate reading: %#v\n", d)
 			direct.WriteToUDP(msg, rnet.RefugeMessages)
 			// enc.Encode(d)
 		}

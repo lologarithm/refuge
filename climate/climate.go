@@ -59,18 +59,21 @@ func (rc RealController) Heat() {
 	rc.FanP.Low()
 	rc.HeatP.Low()
 }
+
 func (rc RealController) Cool() {
 	rc.HeatP.High()
 
 	rc.FanP.Low()
 	rc.CoolP.Low()
 }
+
 func (rc RealController) Fan() {
 	rc.FanP.Low()
 
 	rc.CoolP.High()
 	rc.HeatP.High()
 }
+
 func (rc RealController) Off() {
 	rc.FanP.High()
 	rc.CoolP.High()
@@ -102,21 +105,21 @@ func Control(controller Controller, s Settings, stream chan sensor.Measurement) 
 		for {
 			v := <-stream
 			fmt.Printf("Temp: %.1f, State: %v\n", v.Temp, s)
-			if state == stateIdle || true { // default to override for now.
-				if v.Temp > s.High {
-					fmt.Printf("Activating cooling...\n")
-					state = stateCooling
-					controller.Cool()
-				} else if v.Temp < s.Low {
-					fmt.Printf("Activating heating...\n")
-					state = stateHeating
-					controller.Heat()
-				} else {
-					fmt.Printf("Disabling all climate controls...\n")
-					state = stateIdle
-					controller.Off()
-				}
+			// if state == stateIdle || true { // default to override for now.
+			if v.Temp > s.High && state != stateCooling {
+				fmt.Printf("Activating cooling...\n")
+				state = stateCooling
+				controller.Cool()
+			} else if v.Temp < s.Low && state != stateHeating {
+				fmt.Printf("Activating heating...\n")
+				state = stateHeating
+				controller.Heat()
+			} else {
+				fmt.Printf("Disabling all climate controls...\n")
+				state = stateIdle
+				controller.Off()
 			}
+			// }
 			if s.High == 0 || s.Low == 0 {
 				// Exit!
 				fmt.Printf("No valid high/low temp specified. Control loop exiting.\n")
