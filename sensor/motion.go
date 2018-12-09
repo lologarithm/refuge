@@ -12,8 +12,8 @@ import (
 // Close the stream to stop reading
 func Motion(p int, stream chan int64) {
 	pin := rpio.Pin(p)
-	lr := rpio.Low
-	ltime := time.Now().Unix()
+	lr := rpio.Low             // last reading
+	ltime := time.Now().Unix() // last time motion was detected
 	for {
 		v := pin.Read()
 		if lr != v {
