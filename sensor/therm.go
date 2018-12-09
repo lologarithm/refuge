@@ -4,7 +4,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio"
+	rpio "github.com/stianeikeland/go-rpio/v4"
 )
 
 const (

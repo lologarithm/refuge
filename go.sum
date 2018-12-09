@@ -2,5 +2,8 @@ github.com/gorilla/websocket v1.2.0 h1:VJtLvh6VQym50czpZzx07z/kw9EgAxI3x1ZB8taTM
 github.com/gorilla/websocket v1.2.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/stianeikeland/go-rpio v0.0.0-20180606224349-3abdd2207d33 h1:qzbmi79m5sShwvxniGETsKwV3yePfd+kHgWAP4rjGA4=
 github.com/stianeikeland/go-rpio v0.0.0-20180606224349-3abdd2207d33/go.mod h1:Sh81rdJwD96E2wja2Gd7rrKM+XZ9LrwvN2w4IXrqLR8=
+github.com/stianeikeland/go-rpio v4.2.0+incompatible h1:CUOlIxdJdT+H1obJPsmg8byu7jMSECLfAN9zynm5QGo=
+github.com/stianeikeland/go-rpio/v4 v4.4.0 h1:LScvNyXHF412co42LG5t7bvBDbtDAhLF828ebaGqmjA=
+github.com/stianeikeland/go-rpio/v4 v4.4.0/go.mod h1:BkK52zk+FRk8wCTDf88/86Sojc+NfUiCAHd1ZV3RuTM=
 gitlab.com/lologarithm/thermo v0.0.0-20180629070525-dc742c6fbab8 h1:yrxCEr87j5LiBay1ZdV2t8TZh4HcJx3Yy44a8pY2RIk=
 gitlab.com/lologarithm/thermo v0.0.0-20180629070525-dc742c6fbab8/go.mod h1:xJZNzU2LBLcnQJbd6DgBP8MBP25WystZw/aAA8fRfA8=

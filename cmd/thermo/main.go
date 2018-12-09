@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio"
+	rpio "github.com/stianeikeland/go-rpio/v4"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/rnet"
 	"gitlab.com/lologarithm/refuge/sensor"
