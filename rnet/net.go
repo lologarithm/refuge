@@ -40,7 +40,6 @@ const (
 	PortalStateOpen
 )
 
-
 // Thermostat is a very specific device -- a thermostat
 // Includes current reading as well as temp targets
 type Thermostat struct {
@@ -55,6 +54,7 @@ type Thermostat struct {
 	// Readings
 	Temp     float32 // Last temp reading
 	Humidity float32 // Last humidity reading
+	Motion   int64   // Last motion event
 }
 
 // Switch represents any devices that can be switched on/off
@@ -66,6 +66,8 @@ type Switch struct {
 }
 
 // Msg is what is sent over the broadcast network
+// TODO: make this a device message and put name on just the main struct
+// then any device can send any readings it wants. (sensors, etc)
 type Msg struct {
 	Switch     *Switch
 	Thermostat *Thermostat

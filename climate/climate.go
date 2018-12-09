@@ -98,38 +98,36 @@ const (
 )
 
 // Control accepts a stream of input and returns a function to set the target state.
-func Control(controller Controller, s Settings, stream chan sensor.Measurement) func(s Settings) {
-	go func() {
-		// Run the climate control system here.
-		state := stateIdle
-		for {
-			v := <-stream
-			fmt.Printf("Temp: %.1f, State: %v\n", v.Temp, s)
-			// if state == stateIdle || true { // default to override for now.
-			if v.Temp > s.High && state != stateCooling {
-				fmt.Printf("Activating cooling...\n")
-				state = stateCooling
-				controller.Cool()
-			} else if v.Temp < s.Low && state != stateHeating {
-				fmt.Printf("Activating heating...\n")
-				state = stateHeating
-				controller.Heat()
-			} else {
-				fmt.Printf("Disabling all climate controls...\n")
-				state = stateIdle
-				controller.Off()
-			}
-			// }
-			if s.High == 0 || s.Low == 0 {
-				// Exit!
-				fmt.Printf("No valid high/low temp specified. Control loop exiting.\n")
-				return
-			}
+func Control(controller Controller, setStream chan Settings, thermStream chan sensor.ThermalReading, motionStream chan int64) {
+	s := Settings{
+		Low:  15,
+		High: 30,
+		Mode: ModeAuto,
+	}
+	// Run the climate control system here.
+	state := stateIdle
+	for {
+		v := <-thermStream
+		fmt.Printf("Temp: %.1f, State: %v\n", v.Temp, s)
+		// if state == stateIdle || true { // default to override for now.
+		if v.Temp > s.High && state != stateCooling {
+			fmt.Printf("Activating cooling...\n")
+			state = stateCooling
+			controller.Cool()
+		} else if v.Temp < s.Low && state != stateHeating {
+			fmt.Printf("Activating heating...\n")
+			state = stateHeating
+			controller.Heat()
+		} else {
+			fmt.Printf("Disabling all climate controls...\n")
+			state = stateIdle
+			controller.Off()
 		}
-	}()
-
-	return func(ns Settings) {
-		// Update the current state.
-		s = ns
+		// }
+		if s.High == 0 || s.Low == 0 {
+			// Exit!
+			fmt.Printf("No valid high/low temp specified. Control loop exiting.\n")
+			return
+		}
 	}
 }

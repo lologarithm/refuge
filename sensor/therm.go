@@ -11,38 +11,37 @@ const (
 	maxWait = int64(time.Millisecond) // 100us
 )
 
-// Measurement holds a sensor measurement.
-type Measurement struct {
+// ThermalReading holds a sensor measurement.
+type ThermalReading struct {
 	Temp float32
 	Humi float32
 	Time time.Time
 }
 
-// Stream accepts a pin to read on, how often to read, and a stream to write results to.
+// Therm accepts a pin to read on, how often to read, and a stream.
+// Writes ThermalReadings to the given stream.
 // Close the stream to stop measurements.
-func Stream(p int, measureInterval time.Duration, stream chan Measurement) {
+func Therm(p int, measureInterval time.Duration, stream chan ThermalReading) {
 	pin := rpio.Pin(p)
-	go func() {
-		for {
-			var t, h float32
-			var csg bool
-			debug.SetGCPercent(-1)
-			for i := 0; i < 10; i++ {
-				t, h, csg = readDHT22(pin)
-				if csg {
-					break
-				}
+	for {
+		var t, h float32
+		var csg bool
+		debug.SetGCPercent(-1)
+		for i := 0; i < 10; i++ {
+			t, h, csg = readDHT22(pin)
+			if csg {
+				break
 			}
-			debug.SetGCPercent(100)
-			// fmt.Printf("Temp: %.1fC(%dF) Humidity: %.1f%%\n", t, int(t*9/5)+32, h)
-			select {
-			case stream <- Measurement{Temp: t, Humi: h, Time: time.Now()}:
-			default:
-				return // bad, exit
-			}
-			time.Sleep(measureInterval)
 		}
-	}()
+		debug.SetGCPercent(100)
+		// fmt.Printf("Temp: %.1fC(%dF) Humidity: %.1f%%\n", t, int(t*9/5)+32, h)
+		select {
+		case stream <- ThermalReading{Temp: t, Humi: h, Time: time.Now()}:
+		default:
+			return // bad, exit
+		}
+		time.Sleep(measureInterval)
+	}
 }
 
 func readDHT22(pin rpio.Pin) (float32, float32, bool) {

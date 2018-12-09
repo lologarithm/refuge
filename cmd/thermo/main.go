@@ -18,6 +18,7 @@ import (
 
 func main() {
 	tpin := flag.Int("tpin", 4, "input pin to read for temp")
+	mpin := flag.Int("mpin", 17, "input pin to read for motion")
 	hpin := flag.Int("hpin", 24, "output pin to turn on heat")
 	cpin := flag.Int("cpin", 22, "output pin to turn on cooling")
 	fpin := flag.Int("fpin", 23, "output pin to turn on fan")
@@ -28,20 +29,34 @@ func main() {
 		fmt.Printf("Name parameter is required.")
 		os.Exit(1)
 	}
-	run(*name, *tpin, *fpin, *cpin, *hpin)
+	// run the thermostat
+	run(*name, *tpin, *mpin, *fpin, *cpin, *hpin)
+
+	// Now just hang out until CTRL+C
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+
 }
 
-func run(name string, tpin, fanpin, coolpin, heatpin int) {
-	stream := make(chan sensor.Measurement, 10)
-	climateStream := make(chan sensor.Measurement, 10)
-	set := func(_ climate.Settings) {
+// run in short will take sensor readings, emit them on network, and forward them to the climate controller.
+// Additionally it will accept new settings from the network and send them into the climate controller.
+func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
+	// Incoming streams from sensors
+	thermStream := make(chan sensor.ThermalReading, 2) // Stream from the sensor
+	motionStream := make(chan int64, 2)                // Stream of last motion events
 
-	}
+	// Outgoing streams to climate control system
+	controlStream := make(chan sensor.ThermalReading, 2) // Stream to climate control from this function
+	cSet := make(chan climate.Settings, 2)               // Stream to send climate settings
+	cMot := make(chan int64, 2)                          // Stream to send last motion
+
 	cs := climate.Settings{
 		Low:  15.55,
 		High: 26.66,
 		Mode: climate.ModeAuto,
 	}
+	cSet <- cs // Shove in first desired state
 
 	addrs := rnet.MyIPs()
 	log.Printf("MyAddrs: %#v", addrs)
@@ -63,25 +78,35 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 	dec := json.NewDecoder(direct)
 
 	go func() {
-		for d := range stream {
-			climateStream <- d
-			ts := rnet.Msg{Thermostat: &rnet.Thermostat{
-				Name:     name,
-				Addr:     directAddr.String(),
-				Fan:      uint8(cs.Mode),
-				High:     cs.High,
-				Low:      cs.Low,
-				Temp:     d.Temp,
-				Humidity: d.Humi,
-			}}
+		// Reads thermal readings, forwards to the climate controller
+		// and copies to the network for the web interface to see.
+		ts := rnet.Msg{Thermostat: &rnet.Thermostat{
+			Name:     name,
+			Addr:     directAddr.String(),
+			Fan:      uint8(cs.Mode),
+			High:     cs.High,
+			Low:      cs.Low,
+			Temp:     0,
+			Humidity: 0,
+			Motion:   0,
+		}}
+		for {
+			select {
+			case thReading := <-thermStream:
+				ts.Thermostat.Temp = thReading.Temp
+				ts.Thermostat.Humidity = thReading.Humi
+				controlStream <- thReading
+				fmt.Printf("Climate reading: %#v\n", ts)
+			case motionTime := <-motionStream:
+				ts.Thermostat.Motion = motionTime
+				cMot <- motionTime
+			}
 			msg, merr := json.Marshal(ts)
 			if merr != nil {
 				fmt.Printf("Failed to marshal climate reading: %s", merr)
 				continue
 			}
-			fmt.Printf("Climate reading: %#v\n", d)
 			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			// enc.Encode(d)
 		}
 	}()
 
@@ -94,32 +119,35 @@ func run(name string, tpin, fanpin, coolpin, heatpin int) {
 				continue
 			}
 			fmt.Printf("Climate set attempt: %#v", v)
-			set(v)
+			cSet <- v
 		}
 	}()
 
+	var cl climate.Controller
 	err = rpio.Open()
 	if err != nil {
 		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
 		// send fake data!
-		go func() {
-			for {
-				select {
-				case stream <- sensor.Measurement{Temp: 20, Humi: 50, Time: time.Now()}:
-				default:
-					return // bad, exit
-				}
-				time.Sleep(time.Second * 30)
-			}
-		}()
-		set = climate.Control(climate.FakeController{}, cs, climateStream)
+		go fakeSensors(thermStream)
+		cl = climate.FakeController{}
 	} else {
-		controller := climate.NewController(heatpin, coolpin, fanpin)
-		fmt.Printf("Controller: %v\n", controller)
-		set = climate.Control(controller, cs, climateStream)
-		sensor.Stream(tpin, time.Second*30, stream)
+		cl = climate.NewController(heatpin, coolpin, fanpin)
+		fmt.Printf("Controller: %v\n", cl)
+		// Run Sensors
+		go sensor.Therm(thermpin, time.Second*30, thermStream)
+		go sensor.Motion(motionpin, motionStream)
 	}
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
+	// Run Climate control
+	go climate.Control(cl, cSet, controlStream, cMot)
+}
+
+func fakeSensors(thermStream chan sensor.ThermalReading) {
+	for {
+		select {
+		case thermStream <- sensor.ThermalReading{Temp: 20, Humi: 50, Time: time.Now()}:
+		default:
+			return // bad, exit
+		}
+		time.Sleep(time.Second * 30)
+	}
 }
