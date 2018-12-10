@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio/v4"
+	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 

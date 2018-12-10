@@ -1,46 +1,50 @@
 package main
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"log"
 	"net"
+	"os"
+	"strconv"
 	"time"
 
+	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/rnet"
 	"gitlab.com/lologarithm/refuge/sensor"
 )
 
-func runNetwork(name string, thermStream chan sensor.ThermalReading, motionStream chan int64, controlStream chan sensor.ThermalReading, cSet chan climate.Settings, cMot chan int64) {
-	cSet <- climate.Settings{
-		Low:  15.55,
+var comma = []byte{','}
+var colon = []byte{':'}
+
+func runNetwork(name string, cl climate.Controller, tpin int, thermStream chan sensor.ThermalReading, motionStream chan int64, controlStream chan sensor.ThermalReading, cSet chan climate.Settings, cMot chan int64) {
+	ds := climate.Settings{
+		Low:  19,
 		High: 26.66,
 		Mode: climate.ModeAuto,
 	} // Shove in first desired state
-
+	cSet <- ds
 	addrs := rnet.MyIPs()
-	log.Printf("MyAddrs: %#v", addrs)
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
 	if err != nil {
-		log.Fatalf("Failed to resolve udp: %s", err)
+		fmt.Printf("Failed to resolve udp: %s\n", err)
+		os.Exit(1)
 	}
 	// Listen to directed udp messages
 	direct, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		log.Fatalf("Failed to listen to udp: %s", err)
+		fmt.Printf("Failed to listen to udp: %s\n", err)
+		os.Exit(1)
 	}
-	log.Printf("Listening on: %s", direct.LocalAddr())
+	fmt.Printf("Listening on: %s\n", direct.LocalAddr())
 	directAddr := direct.LocalAddr()
 
 	broadcasts, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeDiscovery)
 	if err != nil {
-		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
+		fmt.Printf("failed to listen to thermo broadcast address: %s\n", err)
+		os.Exit(1)
 	}
-	broadDec := json.NewDecoder(broadcasts)
-
-	dec := json.NewDecoder(direct)
 
 	ts := rnet.Msg{Thermostat: &rnet.Thermostat{
 		// Device Config
@@ -48,9 +52,9 @@ func runNetwork(name string, thermStream chan sensor.ThermalReading, motionStrea
 		Addr: directAddr.String(),
 
 		// Default settings on launch
-		Fan:  uint8(climate.ModeAuto),
-		Low:  15.55,
-		High: 26.66,
+		Fan:  uint8(ds.Mode),
+		Low:  ds.Low,
+		High: ds.High,
 
 		// No readings yet
 		Temp:     0,
@@ -58,64 +62,75 @@ func runNetwork(name string, thermStream chan sensor.ThermalReading, motionStrea
 		Motion:   0,
 	}}
 
-	msg, merr := json.Marshal(ts)
-	if merr != nil {
-		fmt.Printf("Failed to marshal climate reading: %s", merr)
-		return
+	tmpl := `{"Thermostat":{"Name":"%s","Addr":"%s","Fan":%d,"Low":%f,"High":%f,"Temp":%f,"Humidity":%f,"Motion":%d}}`
+	msg := []byte(fmt.Sprintf(tmpl, ts.Thermostat.Name, ts.Thermostat.Addr, ts.Thermostat.Fan, ts.Thermostat.Low, ts.Thermostat.High, ts.Thermostat.Temp, ts.Thermostat.Humidity, ts.Thermostat.Motion))
+	// Look for broadcasts
+	// Try to read from network.
+	v := climate.Settings{
+		High: ts.Thermostat.High,
+		Low:  ts.Thermostat.Low,
 	}
-
-	// Reads thermal readings, forwards to the climate controller
-	// and copies to the network for the web interface to see.
+	state := climate.StateIdle
+	lr := time.Time{}
+	tgp := rpio.Pin(tpin)
+	b := make([]byte, 512)
 	for {
-		// Look for broadcasts
-		if broadDec.More() {
-			v := rnet.Ping{}
-			broadDec.Decode(&v)
-			log.Printf("Got message on discovery(%s)", rnet.RefugeDiscovery)
+		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		n, _, _ := broadcasts.ReadFromUDP(b)
+		if n > 0 {
+			fmt.Printf("Got message on discovery(%s): %s\n", rnet.RefugeDiscovery, string(b[:n]))
 			// Broadcast on ping
 			direct.WriteToUDP(msg, rnet.RefugeMessages)
 		}
 
-		// Try to read from network.
-		if dec.More() {
-			v := climate.Settings{}
-			derr := dec.Decode(&v)
-			if derr != nil {
-				fmt.Printf("Failed to decode climate setting request: %s", derr)
-				continue
+		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		n, _, _ = direct.ReadFromUDP(b)
+		if n > 0 {
+			bits := b[:n]
+			if bits[0] == '{' && bits[len(bits)-1] == '}' {
+				assignments := bytes.Split(bits[1:len(bits)-1], comma)
+				for _, assign := range assignments {
+					fmt.Printf("Assignment: %s\n", assign)
+					parts := bytes.Split(assign, colon)
+					name := string(parts[0])
+					val := string(parts[1])
+					if name == `"Low"` {
+						l, _ := strconv.ParseFloat(val, 32)
+						fmt.Printf("Assigning low to be %f\n", l)
+						v.Low = float32(l)
+					} else if name == `"High"` {
+						h, _ := strconv.ParseFloat(val, 32)
+						v.High = float32(h)
+						fmt.Printf("Assigning high to be %f\n", h)
+					} else {
+						fmt.Printf("Unknown key: %s\n", name)
+					}
+				}
+				ts.Thermostat.High = v.High
+				ts.Thermostat.Low = v.Low
+				// ts.Thermostat.Fan = uint8(v.Mode)
+				state = climate.Control(cl, state, v, sensor.ThermalReading{Temp: ts.Thermostat.Temp, Humi: ts.Thermostat.Humidity, Time: time.Now()})
 			}
-			fmt.Printf("Climate set attempt: %#v", v)
-			ts.Thermostat.High = v.High
-			ts.Thermostat.Low = v.Low
-			ts.Thermostat.Fan = uint8(v.Mode)
-
-			cSet <- v // copy to the climate controller
 		}
 
-		// Check for any new sensor readings, otherwise, wait a second and try the whole loop again.
-		select {
-		case thReading := <-thermStream:
-			ts.Thermostat.Temp = thReading.Temp
-			ts.Thermostat.Humidity = thReading.Humi
-			controlStream <- thReading
-			fmt.Printf("Climate reading: %#v\n", ts)
-			msg, merr = json.Marshal(ts)
-		case motionTime := <-motionStream:
-			ts.Thermostat.Motion = motionTime
-			cMot <- motionTime
-			msg, merr = json.Marshal(ts)
-		default:
-			// Sleep for a bit, and then try again later.
-			time.Sleep(time.Second)
+		if time.Now().Sub(lr) < time.Minute {
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 
-		if merr != nil {
-			fmt.Printf("Failed to marshal climate reading: %s", merr)
-			continue
+		// Reads thermal readings, forwards to the climate controller
+		// and copies to the network for the web interface to see.
+		for i := 0; i < 10; i++ {
+			t, h, csg := sensor.ReadDHT22(tgp)
+			if csg {
+				ts.Thermostat.Temp = t
+				ts.Thermostat.Humidity = h
+				state = climate.Control(cl, state, v, sensor.ThermalReading{Temp: t, Humi: h, Time: time.Now()})
+				msg = []byte(fmt.Sprintf(tmpl, ts.Thermostat.Name, ts.Thermostat.Addr, ts.Thermostat.Fan, ts.Thermostat.Low, ts.Thermostat.High, ts.Thermostat.Temp, ts.Thermostat.Humidity, ts.Thermostat.Motion))
+				direct.WriteToUDP(msg, rnet.RefugeMessages)
+				break
+			}
 		}
-
-		// This means we got something new to send to the network
-		direct.WriteToUDP(msg, rnet.RefugeMessages)
+		lr = time.Now()
 	}
 }

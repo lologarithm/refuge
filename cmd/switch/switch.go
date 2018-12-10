@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	rpio "github.com/stianeikeland/go-rpio/v4"
+	rpio "github.com/stianeikeland/go-rpio"
 )
 
 func main() {

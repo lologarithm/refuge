@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio/v4"
+	rpio "github.com/stianeikeland/go-rpio"
 )
 
 // Motion accepts a pin to read on and a stream to write on.
@@ -12,18 +12,18 @@ import (
 // Close the stream to stop reading
 func Motion(p int, stream chan int64) {
 	pin := rpio.Pin(p)
-	lr := rpio.Low             // last reading
-	ltime := time.Now().Unix() // last time motion was detected
+	lr := rpio.Low      // last reading
+	ltime := time.Now() // last time motion was detected
 	for {
 		v := pin.Read()
 		if lr != v {
 			lr = v
 			if lr == rpio.High {
-				ltime = time.Now().Unix()
+				ltime = time.Now()
 			}
-			fmt.Printf("Reading changed: %d, last motion: %s", lr, time.Unix(ltime, 0).Format("Jan _2 15:04:05"))
+			fmt.Printf("Reading changed: %d, last motion: %s\n", lr, ltime.Format("Jan _2 15:04:05 MST"))
 			select {
-			case stream <- ltime:
+			case stream <- ltime.Unix():
 			default:
 				return // bad, exit
 			}

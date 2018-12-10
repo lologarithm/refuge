@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio/v4"
+	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/sensor"
 )
@@ -48,8 +48,6 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 	cSet := make(chan climate.Settings, 2)               // Stream to send climate settings
 	cMot := make(chan int64, 2)                          // Stream to send last motion
 
-	go runNetwork(name, thermStream, motionStream, controlStream, cSet, cMot)
-
 	var cl climate.Controller
 	err := rpio.Open()
 	if err != nil {
@@ -61,11 +59,15 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		cl = climate.NewController(heatpin, coolpin, fanpin)
 		fmt.Printf("Controller: %v\n", cl)
 		// Run Sensors
-		go sensor.Therm(thermpin, time.Second*30, thermStream)
-		go sensor.Motion(motionpin, motionStream)
+		// go sensor.Therm(thermpin, time.Second*30, thermStream)
+		if motionpin != 0 {
+			go sensor.Motion(motionpin, motionStream)
+		}
 	}
+	go runNetwork(name, cl, thermpin, thermStream, motionStream, controlStream, cSet, cMot)
+
 	// Run Climate control
-	go climate.Control(cl, cSet, controlStream, cMot)
+	// go climate.ControlLoop(cl, cSet, controlStream, cMot)
 }
 
 func fakeSensors(thermStream chan sensor.ThermalReading) {

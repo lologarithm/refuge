@@ -1,10 +1,11 @@
 package sensor
 
 import (
+	"fmt"
 	"runtime/debug"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio/v4"
+	rpio "github.com/stianeikeland/go-rpio"
 )
 
 const (
@@ -28,13 +29,17 @@ func Therm(p int, measureInterval time.Duration, stream chan ThermalReading) {
 		var csg bool
 		debug.SetGCPercent(-1)
 		for i := 0; i < 10; i++ {
-			t, h, csg = readDHT22(pin)
+			t, h, csg = ReadDHT22(pin)
 			if csg {
 				break
 			}
 		}
 		debug.SetGCPercent(100)
-		// fmt.Printf("Temp: %.1fC(%dF) Humidity: %.1f%%\n", t, int(t*9/5)+32, h)
+		if !csg {
+			fmt.Printf("Therm Loop: Failed to get a good reading after 10 tries.\n")
+			continue
+		}
+		fmt.Printf("Therm Loop: Temp: %.1fC(%dF) Humidity: %.1f%%\n", t, int(t*9/5)+32, h)
 		select {
 		case stream <- ThermalReading{Temp: t, Humi: h, Time: time.Now()}:
 		default:
@@ -44,11 +49,11 @@ func Therm(p int, measureInterval time.Duration, stream chan ThermalReading) {
 	}
 }
 
-func readDHT22(pin rpio.Pin) (float32, float32, bool) {
+func ReadDHT22(pin rpio.Pin) (float32, float32, bool) {
 	// early allocations before time critical code
 	pulseLen := make([]int64, 82)
 
-	time.Sleep(1700 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 	pin.Mode(rpio.Output)
 	pin.High()
 
