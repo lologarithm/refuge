@@ -4,6 +4,8 @@ import (
 	"log"
 	"net"
 	"strings"
+
+	"gitlab.com/lologarithm/refuge/climate"
 )
 
 // RefugeMessages is the multicast address used by devices to communicate to web server.
@@ -45,6 +47,8 @@ const (
 type Thermostat struct {
 	Name string // Name of thermostat
 	Addr string // Address of thermostat
+
+	State climate.ControlState
 
 	// Settings
 	High float32 // Temp Max

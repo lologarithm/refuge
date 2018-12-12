@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/rnet"
 	"gitlab.com/lologarithm/refuge/sensor"
@@ -17,13 +16,17 @@ import (
 var comma = []byte{','}
 var colon = []byte{':'}
 
-func runNetwork(name string, cl climate.Controller, tpin int, thermStream chan sensor.ThermalReading, motionStream chan int64, controlStream chan sensor.ThermalReading, cSet chan climate.Settings, cMot chan int64) {
+func jsonSerThemo(ts *rnet.Thermostat) []byte {
+	const tmpl string = `{"Thermostat":{"Name":"%s","Addr":"%s","Fan":%d,"Low":%f,"High":%f,"Temp":%f,"Humidity":%f,"Motion":%d,"State":%d}}`
+	return []byte(fmt.Sprintf(tmpl, ts.Name, ts.Addr, ts.Fan, ts.Low, ts.High, ts.Temp, ts.Humidity, ts.Motion, ts.State))
+}
+
+func runNetwork(name string, cl climate.Controller, readTherm func() (float32, float32, bool), readMotion func() bool) {
 	ds := climate.Settings{
 		Low:  19,
 		High: 26.66,
 		Mode: climate.ModeAuto,
 	} // Shove in first desired state
-	cSet <- ds
 	addrs := rnet.MyIPs()
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
@@ -62,19 +65,27 @@ func runNetwork(name string, cl climate.Controller, tpin int, thermStream chan s
 		Motion:   0,
 	}}
 
-	tmpl := `{"Thermostat":{"Name":"%s","Addr":"%s","Fan":%d,"Low":%f,"High":%f,"Temp":%f,"Humidity":%f,"Motion":%d}}`
-	msg := []byte(fmt.Sprintf(tmpl, ts.Thermostat.Name, ts.Thermostat.Addr, ts.Thermostat.Fan, ts.Thermostat.Low, ts.Thermostat.High, ts.Thermostat.Temp, ts.Thermostat.Humidity, ts.Thermostat.Motion))
+	msg := jsonSerThemo(ts.Thermostat)
 	// Look for broadcasts
 	// Try to read from network.
 	v := climate.Settings{
 		High: ts.Thermostat.High,
 		Low:  ts.Thermostat.Low,
 	}
-	state := climate.StateIdle
 	lr := time.Time{}
-	tgp := rpio.Pin(tpin)
+	lastMotion := time.Now()
+	motReading := false
 	b := make([]byte, 512)
+	runControl := false
 	for {
+		if runControl {
+			climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: ts.Thermostat.Temp, Humi: ts.Thermostat.Humidity})
+			ts.Thermostat.State = cl.State()
+			msg = jsonSerThemo(ts.Thermostat)
+			direct.WriteToUDP(msg, rnet.RefugeMessages)
+			runControl = false
+		}
+
 		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
 		n, _, _ := broadcasts.ReadFromUDP(b)
 		if n > 0 {
@@ -109,8 +120,19 @@ func runNetwork(name string, cl climate.Controller, tpin int, thermStream chan s
 				ts.Thermostat.High = v.High
 				ts.Thermostat.Low = v.Low
 				// ts.Thermostat.Fan = uint8(v.Mode)
-				state = climate.Control(cl, state, v, sensor.ThermalReading{Temp: ts.Thermostat.Temp, Humi: ts.Thermostat.Humidity, Time: time.Now()})
+				runControl = true
 			}
+		}
+
+		mot := readMotion()
+		if mot {
+			lastMotion = time.Now()
+			ts.Thermostat.Motion = lastMotion.Unix()
+		}
+		if mot != motReading {
+			fmt.Printf("Motion State Changed to: %v. Previous Motion was at: %s\n", motReading, lastMotion.Format("Jan 2 15:04:05"))
+			motReading = mot
+			runControl = true
 		}
 
 		if time.Now().Sub(lr) < time.Minute {
@@ -121,13 +143,11 @@ func runNetwork(name string, cl climate.Controller, tpin int, thermStream chan s
 		// Reads thermal readings, forwards to the climate controller
 		// and copies to the network for the web interface to see.
 		for i := 0; i < 10; i++ {
-			t, h, csg := sensor.ReadDHT22(tgp)
+			t, h, csg := readTherm()
 			if csg {
 				ts.Thermostat.Temp = t
 				ts.Thermostat.Humidity = h
-				state = climate.Control(cl, state, v, sensor.ThermalReading{Temp: t, Humi: h, Time: time.Now()})
-				msg = []byte(fmt.Sprintf(tmpl, ts.Thermostat.Name, ts.Thermostat.Addr, ts.Thermostat.Fan, ts.Thermostat.Low, ts.Thermostat.High, ts.Thermostat.Temp, ts.Thermostat.Humidity, ts.Thermostat.Motion))
-				direct.WriteToUDP(msg, rnet.RefugeMessages)
+				runControl = true
 				break
 			}
 		}

@@ -2,6 +2,7 @@ package climate
 
 import (
 	"fmt"
+	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/sensor"
@@ -27,15 +28,18 @@ type Controller interface {
 	Cool()
 	Fan()
 	Off()
+	State() ControlState
 }
 
 type RealController struct {
 	FanP  rpio.Pin
 	CoolP rpio.Pin
 	HeatP rpio.Pin
+
+	state ControlState
 }
 
-func NewController(h, c, f int) RealController {
+func NewController(h, c, f int) *RealController {
 	fan := rpio.Pin(f)
 	fan.Mode(rpio.Output)
 	fan.High()
@@ -46,38 +50,50 @@ func NewController(h, c, f int) RealController {
 	heat.Mode(rpio.Output)
 	heat.High()
 
-	return RealController{
+	return &RealController{
 		FanP:  fan,
 		CoolP: cool,
 		HeatP: heat,
 	}
 }
 
-func (rc RealController) Heat() {
+func (rc *RealController) Heat() {
 	rc.CoolP.High()
 
 	rc.FanP.Low()
 	rc.HeatP.Low()
+
+	rc.state = StateHeating
 }
 
-func (rc RealController) Cool() {
+func (rc *RealController) Cool() {
 	rc.HeatP.High()
 
 	rc.FanP.Low()
 	rc.CoolP.Low()
+
+	rc.state = StateCooling
 }
 
-func (rc RealController) Fan() {
+func (rc *RealController) Fan() {
 	rc.FanP.Low()
 
 	rc.CoolP.High()
 	rc.HeatP.High()
+
+	rc.state = StateFanning
 }
 
-func (rc RealController) Off() {
+func (rc *RealController) Off() {
 	rc.FanP.High()
 	rc.CoolP.High()
 	rc.HeatP.High()
+
+	rc.state = StateIdle
+}
+
+func (rc RealController) State() ControlState {
+	return rc.state
 }
 
 // Does nothing. used for running without actually doing anything
@@ -94,6 +110,7 @@ type ControlState byte
 const (
 	StateIdle ControlState = iota
 	StateCooling
+	StateFanning
 	StateHeating
 )
 
@@ -101,16 +118,18 @@ const (
 func ControlLoop(controller Controller, setStream chan Settings, thermStream chan sensor.ThermalReading, motionStream chan int64) {
 	s := Settings{}
 	// Run the climate control system here.
-	state := StateIdle
-	// lastMotion := time.Now()
+	lastTherm := <-thermStream
+	lastMotion := time.Now()
 	fmt.Printf("Starting control loop now...\n")
 
 	for {
 		select {
 		case v := <-thermStream:
-			state = Control(controller, state, s, v)
-		case <-motionStream:
-			// lastMotion = time.Unix(t, 0)
+			lastTherm = v
+			Control(controller, s, lastMotion, lastTherm)
+		case t := <-motionStream:
+			lastMotion = time.Unix(t, 0)
+			Control(controller, s, lastMotion, lastTherm)
 		case set := <-setStream:
 			fmt.Printf("Climate Loop: changing settings: %#v\n", set)
 			s.High = set.High
@@ -128,21 +147,22 @@ func ControlLoop(controller Controller, setStream chan Settings, thermStream cha
 }
 
 // Control accepts current state and decides what to change
-func Control(controller Controller, state ControlState, s Settings, tr sensor.ThermalReading) ControlState {
-	fmt.Printf("Climate Loop: Temp: %.1f, State: %v\n", tr.Temp, s)
-	// if time.Now().Sub(lastMotion) > time.Hour {
-	// 	fmt.Printf("Climate Loop: Its been over an hour since motion was seen, increasing temp range by 2C\n")
-	// 	tempOffset = 2
-	// }
+func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.ThermalReading) {
+	fmt.Printf("Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
 	tempOffset := float32(0)
 
+	if time.Now().Sub(lastMotion) > time.Minute*30 {
+		fmt.Printf("Climate Loop: Its been over 30 min since motion was seen, increasing temp range by 2C\n")
+		tempOffset = 2
+	}
+	state := controller.State()
 	if state == StateHeating || state == StateCooling {
 		tempOffset -= 1.5 // We want to go a little over the temp we are targetting.
 	}
 	if tr.Temp > s.High+tempOffset && state != StateCooling {
 		fmt.Printf("Climate Loop: Activating cooling...\n")
 		controller.Cool()
-		return StateCooling
+		return
 	} else if tr.Temp < s.Low-tempOffset {
 		if state != StateHeating {
 			fmt.Printf("Climate Loop: Activating heating...\n")
@@ -150,12 +170,11 @@ func Control(controller Controller, state ControlState, s Settings, tr sensor.Th
 		} else {
 			fmt.Printf("Climate Loop: still heating...\n")
 		}
-		return StateHeating
+		return
 	} else if state == StateIdle {
-		return StateIdle
+		return
 	}
 
 	fmt.Printf("Climate Loop: Disabling all climate controls...\n")
 	controller.Off()
-	return StateIdle
 }

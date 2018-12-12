@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
 	"gitlab.com/lologarithm/refuge/climate"
@@ -39,44 +38,28 @@ func main() {
 // run in short will take sensor readings, emit them on network, and forward them to the climate controller.
 // Additionally it will accept new settings from the network and send them into the climate controller.
 func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
-	// Incoming streams from sensors
-	thermStream := make(chan sensor.ThermalReading, 2) // Stream from the sensor
-	motionStream := make(chan int64, 2)                // Stream of last motion events
-
-	// Outgoing streams to climate control system
-	controlStream := make(chan sensor.ThermalReading, 2) // Stream to climate control from this function
-	cSet := make(chan climate.Settings, 2)               // Stream to send climate settings
-	cMot := make(chan int64, 2)                          // Stream to send last motion
-
 	var cl climate.Controller
 	err := rpio.Open()
 	if err != nil {
 		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
-		// send fake data!
-		go fakeSensors(thermStream)
-		cl = climate.FakeController{}
+		getMot := func() bool { return true }
+		getTherm := func() (float32, float32, bool) { return 20, 20, true }
+		go runNetwork(name, cl, getTherm, getMot)
+		return
+	}
+
+	cl = climate.NewController(heatpin, coolpin, fanpin)
+	fmt.Printf("Controller: %v\n", cl)
+	var getMot func() bool
+	if motionpin != 0 {
+		mp := rpio.Pin(motionpin)
+		mp.PullDown()
+		mp.Mode(rpio.Input)
+		getMot = func() bool { return sensor.ReadMotion(mp) }
 	} else {
-		cl = climate.NewController(heatpin, coolpin, fanpin)
-		fmt.Printf("Controller: %v\n", cl)
-		// Run Sensors
-		// go sensor.Therm(thermpin, time.Second*30, thermStream)
-		if motionpin != 0 {
-			go sensor.Motion(motionpin, motionStream)
-		}
+		getMot = func() bool { return true }
 	}
-	go runNetwork(name, cl, thermpin, thermStream, motionStream, controlStream, cSet, cMot)
-
-	// Run Climate control
-	// go climate.ControlLoop(cl, cSet, controlStream, cMot)
-}
-
-func fakeSensors(thermStream chan sensor.ThermalReading) {
-	for {
-		select {
-		case thermStream <- sensor.ThermalReading{Temp: 20, Humi: 50, Time: time.Now()}:
-		default:
-			return // bad, exit
-		}
-		time.Sleep(time.Second * 30)
-	}
+	tp := rpio.Pin(thermpin)
+	getTherm := func() (float32, float32, bool) { return sensor.ReadDHT22(tp) }
+	go runNetwork(name, cl, getTherm, getMot)
 }

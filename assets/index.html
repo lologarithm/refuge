@@ -71,7 +71,7 @@
 <body>
   <div><p style="font-size:3em">Refuge Home Automation</p></div>
   <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
-  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><input class="therminput" type="text" value="LOW"></input><input class="therminput" type="text" value="HIGH"></input><button>Set</button></div>
+  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><p>State: <span>Unknown</span></p><input class="therminput" type="text" value="LOW"></input><input class="therminput" type="text" value="HIGH"></input><button>Set</button></div>
   <!-- This is a hidden template for switches -->
   <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
   <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><span>STATE</span><button>Toggle</button></div>
@@ -165,19 +165,26 @@
       // <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><textbox>LOW</textbox><textbox>HIGH</textbox><button>Set</button></div>
 
       // TODO: make better selectors
-      thdiv.childNodes[5].addEventListener("click", function(){
-        var low = Number.parseFloat(thdiv.childNodes[3].value);
-        var high = Number.parseFloat(thdiv.childNodes[4].value);
+      thdiv.childNodes[6].addEventListener("click", function(){
+        var low = Number.parseFloat(thdiv.childNodes[4].value);
+        var high = Number.parseFloat(thdiv.childNodes[5].value);
         var msg = JSON.stringify({Climate: {Name: thdata.Name, High: high, Low: low}})
         ws.send(msg);
       });
       document.body.appendChild(thdiv);
     }
+    var state = "Idle";
+    if (thdata.State == 1) {
+      state = "Cooling"
+    } else if (thdata.State == 3) {
+      state = "Heating"
+    }
     // Now update the values for current temp/hum and target.
     thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp;
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
-    thdiv.childNodes[3].value = thdata.Low;
-    thdiv.childNodes[4].value = thdata.High;
+    thdiv.childNodes[3].childNodes[1].innerText = state;
+    thdiv.childNodes[4].value = thdata.Low;
+    thdiv.childNodes[5].value = thdata.High;
   }
 </script>
 </html>

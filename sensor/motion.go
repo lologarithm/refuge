@@ -31,3 +31,8 @@ func Motion(p int, stream chan int64) {
 		time.Sleep(time.Second) // read from motion sensor once per second
 	}
 }
+
+// ReadMotion will check if the pin has recently seen motion.
+func ReadMotion(pin rpio.Pin) bool {
+	return pin.Read() == rpio.High
+}

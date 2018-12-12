@@ -55,20 +55,22 @@ func serve(host string, deviceStream chan rnet.Msg) {
 				pd.Lock()
 				pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = *td
 				pd.Unlock()
+				log.Printf("Thermo state is now: %#v", td)
 			case msg.Switch != nil:
 				fd := msg.Switch
 				// Update our cached thermostats
 				pd.Lock()
 				pd.Switches[strings.Replace(fd.Name, " ", "", -1)] = *fd
-				log.Printf("Switch state is now: %#v", fd)
 				pd.Unlock()
+				log.Printf("Switch state is now: %#v", fd)
 			case msg.Portal != nil:
 				p := msg.Portal
 				// Update our cached thermostats
 				pd.Lock()
 				pd.Portals[strings.Replace(p.Name, " ", "", -1)] = *p
-				log.Printf("Portal state is now: %#v", p)
 				pd.Unlock()
+				log.Printf("Portal state is now: %#v", p)
+
 			}
 			// Now push the update to all connected websockets
 			d, err := json.Marshal(msg)
