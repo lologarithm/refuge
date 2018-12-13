@@ -77,14 +77,17 @@
   <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><span>STATE</span><button>Toggle</button></div>
 </body>
 <script>
-  var ws = new WebSocket("ws://" + location.host + "/stream");
-  // Connection opened
-  ws.addEventListener('open', function (event) {
-    console.log("Socket opened.");
-  });
+  var ws;
 
-  // Listen for messages
-  ws.addEventListener('message', function (event) {
+  console.log("Starting websocket...")
+  onClose(); // Reconnects the web socket
+
+  // websocket functions
+  function onOpen(event) {
+    console.log("Socket opened.");
+  }
+
+  function onMessage(event) {
     var msg = JSON.parse(event.data);
     if (msg.Thermostat != null) {
       updateThermo(msg.Thermostat);
@@ -95,7 +98,23 @@
       console.log("Portal update: ", msg.Portal)
       updatePortal(msg.Portal);
     }
-  });
+  }
+
+  function onClose(event) {
+    var timeout = 1000;
+    if (ws) {
+      console.log("Reconnecting...")
+      timeout = 0;
+    }
+    setTimeout(function(){
+      ws = new WebSocket("ws://" + location.host + "/stream");
+      ws.addEventListener('close', onClose)
+      ws.addEventListener('open', onOpen)
+      ws.addEventListener('message', onMessage);
+    }, timeout)
+  }
+
+  // Update functions
 
   function updatePortal(thdata) {
     var thid = "portal" + thdata.Name.replace(" ", "");
@@ -177,10 +196,10 @@
     if (thdata.State == 1) {
       state = "Cooling"
     } else if (thdata.State == 3) {
-      state = "Heating"
+      state = "Heating to " + (thdata.Temp+1.5) + "C"
     }
     // Now update the values for current temp/hum and target.
-    thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp;
+    thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp + "C";
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
     thdiv.childNodes[3].childNodes[1].innerText = state;
     thdiv.childNodes[4].value = thdata.Low;
