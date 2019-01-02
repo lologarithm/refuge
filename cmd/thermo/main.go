@@ -13,13 +13,13 @@ import (
 
 func main() {
 	tpin := flag.Int("tpin", 4, "input pin to read for temp")
-	mpin := flag.Int("mpin", 17, "input pin to read for motion")
+	mpin := flag.Int("mpin", 0, "input pin to read for motion")
 	hpin := flag.Int("hpin", 24, "output pin to turn on heat")
 	cpin := flag.Int("cpin", 22, "output pin to turn on cooling")
 	fpin := flag.Int("fpin", 23, "output pin to turn on fan")
 	name := flag.String("name", "", "name of thermostat")
 	flag.Parse()
-	fmt.Printf("Name: %s, Thermo Pin: %d\nHeating Pin: %d\nCooling Pin: %d\nFan Pin: %d\n", *name, *tpin, *hpin, *cpin, *fpin)
+	fmt.Printf("Name: %s\n\tThermo Pin: %d\n\tHeating Pin: %d\n\tCooling Pin: %d\n\tFan Pin: %d\n", *name, *tpin, *hpin, *cpin, *fpin)
 	if *name == "" {
 		fmt.Printf("Name parameter is required.")
 		os.Exit(1)
@@ -49,7 +49,6 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 	}
 
 	cl = climate.NewController(heatpin, coolpin, fanpin)
-	fmt.Printf("Controller: %v\n", cl)
 	var getMot func() bool
 	if motionpin != 0 {
 		mp := rpio.Pin(motionpin)
@@ -57,7 +56,7 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		mp.Mode(rpio.Input)
 		getMot = func() bool { return sensor.ReadMotion(mp) }
 	} else {
-		getMot = func() bool { return true }
+		print("No motion sensor attached. Defaulting to always have motion 'on'.\n")
 	}
 	tp := rpio.Pin(thermpin)
 	getTherm := func() (float32, float32, bool) { return sensor.ReadDHT22(tp) }

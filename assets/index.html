@@ -70,14 +70,19 @@
 </head>
 <body>
   <div><p style="font-size:3em">Refuge Home Automation</p></div>
+  <div><p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p></div>
   <!-- This is a hidden template for new thermostats. used by websocket messages to build instances -->
-  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><p>State: <span>Unknown</span></p><input class="therminput" type="text" value="LOW"></input><input class="therminput" type="text" value="HIGH"></input><button>Set</button></div>
+  <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>?? C</span></p><p>Humidity: <span>50</span>%</p><p>State: <span>Unknown</span></p><p>Last Motion: <span>Unknown</span></p><input class="therminput" type="text" value="LOW"></input><input class="therminput" type="text" value="HIGH"></input><button>Set</button></div>
   <!-- This is a hidden template for switches -->
   <div class="switch" style="display:none" id="switchsample"><strong>NAME</strong><br /><button></button></div>
   <div class="portal" style="display:none" id="portalsample"><strong>NAME</strong><br /><span>STATE</span><button>Toggle</button></div>
 </body>
 <script>
   var ws;
+
+  var toggle = document.getElementById("unittoggle");
+  toggle.addEventListener("click", toggleUnits);
+
 
   console.log("Starting websocket...")
   onClose(); // Reconnects the web socket
@@ -90,6 +95,7 @@
   function onMessage(event) {
     var msg = JSON.parse(event.data);
     if (msg.Thermostat != null) {
+      console.log("Thermo update: ", msg.Thermostat)
       updateThermo(msg.Thermostat);
     } else if (msg.Switch != null) {
       console.log("Switch update: ", msg.Switch)
@@ -180,30 +186,69 @@
       thdiv.id = thid;
       thdiv.style.display = "block";
       thdiv.childNodes[0].innerText = thdata.Name;
-
-      // <div class="thermo" style="display:none" id="thermosample"><strong>NAME</strong><p>Temperature: <span>20</span></p><p>Humidity: <span>50</span>%</p><textbox>LOW</textbox><textbox>HIGH</textbox><button>Set</button></div>
-
       // TODO: make better selectors
-      thdiv.childNodes[6].addEventListener("click", function(){
-        var low = Number.parseFloat(thdiv.childNodes[4].value);
-        var high = Number.parseFloat(thdiv.childNodes[5].value);
+      thdiv.childNodes[7].addEventListener("click", function(){
+        var units = localStorage.getItem("units");
+        var low = Number.parseFloat(thdiv.childNodes[5].value);
+        var high = Number.parseFloat(thdiv.childNodes[6].value);
+        if (units == "F") {
+          low = convertToC(low);
+          high = convertToC(high);
+        }
         var msg = JSON.stringify({Climate: {Name: thdata.Name, High: high, Low: low}})
+        console.log("Sending msg to server: ", msg)
         ws.send(msg);
       });
       document.body.appendChild(thdiv);
     }
+    var units = localStorage.getItem("units");
+    if (units == null) {
+      units = "C";
+    }
+
+    var targetAdjust = 1.5;
+    if (units == "F") {
+      thdata.Temp = convertToF(thdata.Temp);
+      thdata.Low = convertToF(thdata.Low);
+      thdata.High = convertToF(thdata.High);
+      targetAdjust = convertToF(targetAdjust);
+    }
+
     var state = "Idle";
     if (thdata.State == 1) {
-      state = "Cooling"
+      state = "Cooling to " + (thdata.High-targetAdjust);
     } else if (thdata.State == 3) {
-      state = "Heating to " + (thdata.Temp+1.5) + "C"
+      state = "Heating to " + (thdata.Low+targetAdjust);
     }
     // Now update the values for current temp/hum and target.
-    thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp + "C";
+    thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp.toFixed(2) + units;
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
     thdiv.childNodes[3].childNodes[1].innerText = state;
-    thdiv.childNodes[4].value = thdata.Low;
-    thdiv.childNodes[5].value = thdata.High;
+    thdiv.childNodes[4].childNodes[1].innerText = thdata.Motion;
+    thdiv.childNodes[4].style = "display:none;"
+    thdiv.childNodes[5].value = thdata.Low;
+    thdiv.childNodes[6].value = thdata.High;
+  }
+
+  function toggleUnits() {
+    var units = localStorage.getItem("units");
+    var toggle = document.getElementById("unittoggle");
+
+    if (units == "F") {
+      localStorage.setItem("units" , "C");
+      toggle.innerText = "Celcius";
+    } else {
+      localStorage.setItem("units" , "F");
+      toggle.innerText = "Farenheight";
+    }
+  }
+
+  function convertToF(v) {
+    return (v*1.8) + 32;
+  }
+
+  function convertToC(v) {
+    return (v-32) / 1.8;
   }
 </script>
 </html>

@@ -6,7 +6,8 @@ import (
 
 func main() {
 	host := flag.String("host", ":80", "host:port to serve on")
+	test := flag.Bool("test", false, "use fake test data so no network is needed.")
 	flag.Parse()
 	// Launcher monitors and serves web host.
-	serve(*host, monitor())
+	serve(*host, monitor(*test))
 }

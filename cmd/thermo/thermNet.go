@@ -74,13 +74,24 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 	}
 	lr := time.Time{}
 	lastMotion := time.Now()
-	motReading := false
+	motReading := true
 	b := make([]byte, 512)
 	runControl := false
+
+	readings := []sensor.ThermalReading{}
 	for {
 		if runControl {
-			climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: ts.Thermostat.Temp, Humi: ts.Thermostat.Humidity})
+			avgt := float32(0)
+			for _, v := range readings {
+				avgt += v.Temp
+			}
+			avgt /= float32(len(readings))
+			climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: avgt, Humi: ts.Thermostat.Humidity})
+			ts.Thermostat.Temp = avgt
+			ts.Thermostat.Humidity = readings[len(readings)-1].Humi
+			ts.Thermostat.Motion = lastMotion.Unix()
 			ts.Thermostat.State = cl.State()
+
 			msg = jsonSerThemo(ts.Thermostat)
 			direct.WriteToUDP(msg, rnet.RefugeMessages)
 			runControl = false
@@ -101,7 +112,6 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			if bits[0] == '{' && bits[len(bits)-1] == '}' {
 				assignments := bytes.Split(bits[1:len(bits)-1], comma)
 				for _, assign := range assignments {
-					fmt.Printf("Assignment: %s\n", assign)
 					parts := bytes.Split(assign, colon)
 					name := string(parts[0])
 					val := string(parts[1])
@@ -124,19 +134,22 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			}
 		}
 
-		mot := readMotion()
-		if mot {
+		if readMotion != nil {
+			mot := readMotion()
+			if mot {
+				lastMotion = time.Now()
+			}
+			if mot != motReading {
+				fmt.Printf("Motion State Changed to: %v. Previous Motion was at: %s\n", motReading, lastMotion.Format("Jan 2 15:04:05"))
+				motReading = mot
+				runControl = true
+			}
+		} else {
 			lastMotion = time.Now()
-			ts.Thermostat.Motion = lastMotion.Unix()
-		}
-		if mot != motReading {
-			fmt.Printf("Motion State Changed to: %v. Previous Motion was at: %s\n", motReading, lastMotion.Format("Jan 2 15:04:05"))
-			motReading = mot
-			runControl = true
 		}
 
 		if time.Now().Sub(lr) < time.Minute {
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(time.Millisecond * 250)
 			continue
 		}
 
@@ -145,12 +158,30 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		for i := 0; i < 10; i++ {
 			t, h, csg := readTherm()
 			if csg {
-				ts.Thermostat.Temp = t
-				ts.Thermostat.Humidity = h
+				if len(readings) > 0 {
+					diff := abs(t - readings[len(readings)-1].Temp)
+					if diff > 10 {
+						// Unlikely this big of a jump would happen
+						print("Last reading >10C different in the past 5 minutes. Ignoring reading.\n")
+						break
+					}
+				}
+				readings = append(readings, sensor.ThermalReading{Temp: t, Humi: h})
 				runControl = true
 				break
 			}
 		}
+
+		if len(readings) > 2 {
+			readings = readings[1:]
+		}
 		lr = time.Now()
 	}
+}
+
+func abs(a float32) float32 {
+	if a >= 0 {
+		return a
+	}
+	return -a
 }

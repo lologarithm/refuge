@@ -4,11 +4,29 @@ import (
 	"encoding/json"
 	"log"
 	"net"
+	"time"
 
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
-func monitor() (chan rnet.Msg) {
+func fakeMonitor() chan rnet.Msg {
+	tstream := make(chan rnet.Msg, 10)
+	go func() {
+		for {
+			tstream <- rnet.Msg{
+				Thermostat: &rnet.Thermostat{Name: "Test Thermo", Temp: 15.3456, Humidity: 10.1},
+			}
+			time.Sleep(10 * time.Second)
+		}
+	}()
+
+	return tstream
+}
+
+func monitor(test bool) chan rnet.Msg {
+	if test {
+		return fakeMonitor()
+	}
 	tstream := make(chan rnet.Msg, 10)
 
 	udp, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeMessages)
