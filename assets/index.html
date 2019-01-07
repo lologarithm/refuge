@@ -83,6 +83,13 @@
   var toggle = document.getElementById("unittoggle");
   toggle.addEventListener("click", toggleUnits);
 
+  var units = localStorage.getItem("units");
+
+  if (units == "F") {
+      toggle.innerText = "Fahrenheit";
+  } else {
+      toggle.innerText = "Celcius";
+  }
 
   console.log("Starting websocket...")
   onClose(); // Reconnects the web socket
@@ -206,19 +213,25 @@
       units = "C";
     }
 
-    var targetAdjust = 1.5;
     if (units == "F") {
       thdata.Temp = convertToF(thdata.Temp);
       thdata.Low = convertToF(thdata.Low);
       thdata.High = convertToF(thdata.High);
-      targetAdjust = convertToF(targetAdjust);
     }
 
     var state = "Idle";
     if (thdata.State == 1) {
-      state = "Cooling to " + (thdata.High-targetAdjust);
+      var adjusted = thdata.High-1.5;
+      if (units == "F") {
+        adjusted = convertToF(adjusted);
+      }
+      state = "Cooling to " + adjusted;
     } else if (thdata.State == 3) {
-      state = "Heating to " + (thdata.Low+targetAdjust);
+      var adjusted = thdata.Low+1.5;
+      if (units == "F") {
+        adjusted = convertToF(adjusted);
+      }
+      state = "Heating to " + adjusted;
     }
     // Now update the values for current temp/hum and target.
     thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp.toFixed(2) + units;
