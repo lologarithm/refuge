@@ -1,0 +1,10 @@
+[Unit]
+Description=Refuge
+After=multi-user.target
+
+[Service]
+Type=idle
+ExecStart=/home/pi/XXXX --name="NAME" --somepin=17
+
+[Install]
+WantedBy=multi-user.target
