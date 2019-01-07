@@ -213,12 +213,6 @@
       units = "C";
     }
 
-    if (units == "F") {
-      thdata.Temp = convertToF(thdata.Temp);
-      thdata.Low = convertToF(thdata.Low);
-      thdata.High = convertToF(thdata.High);
-    }
-
     var state = "Idle";
     if (thdata.State == 1) {
       var adjusted = thdata.High-1.5;
@@ -233,14 +227,21 @@
       }
       state = "Heating to " + adjusted;
     }
+    
+    if (units == "F") {
+      thdata.Temp = convertToF(thdata.Temp);
+      thdata.Low = convertToF(thdata.Low);
+      thdata.High = convertToF(thdata.High);
+    }
+
     // Now update the values for current temp/hum and target.
     thdiv.childNodes[1].childNodes[1].innerText = thdata.Temp.toFixed(2) + units;
     thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
     thdiv.childNodes[3].childNodes[1].innerText = state;
     thdiv.childNodes[4].childNodes[1].innerText = thdata.Motion;
     thdiv.childNodes[4].style = "display:none;"
-    thdiv.childNodes[5].value = thdata.Low;
-    thdiv.childNodes[6].value = thdata.High;
+    thdiv.childNodes[5].value = thdata.Low.toFixed(1);
+    thdiv.childNodes[6].value = thdata.High.toFixed(1);
   }
 
   function toggleUnits() {
