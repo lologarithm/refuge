@@ -2,122 +2,298 @@
   <head>
     <style> svg {position: absolute;}</style>
   </head>
-  <body>
-  <!--  Floor 1-->
-  <svg height=600 width=600>
-    <style>
-      .room rect {
-        fill: transparent;
-        stroke: black;
-        stroke-width: 2;
-      }
-      line { stroke-width: 1; stroke: black}
-      .room text { font: normal 13px sans-serif; }
-    </style>
-    <!-- <text x="50" y="50">Garage</text> -->
-    <g transform="translate(50,50)">
-      <g class="room">
-        <rect height=350 width=200></rect>
-        <text x="50" y="50">Garage</text>
-      </g>
-      <g transform="translate(200,0)" class="room">
-        <rect height=150 width=200></rect>
-        <text x="50" y="50">Living</text>
-      </g>
-      <g transform="translate(400,0)" class="room">
-        <rect height=150 width=150></rect>
-        <text x="50" y="50">Dining</text>
-      </g>
-      <g transform="translate(400, 150)" class="room">
-        <rect height=200 width=150></rect>
-        <text x="50" y="50">Kitchen</text>
-      </g>
-      <g transform="translate(200, 300)" class="room">
-        <rect height=50 width=200></rect>
-        <text x="30" y="30">Hallway</text>
-      </g>
-      <g transform="translate(200, 350)" class="room">
-        <rect height=150 width=200></rect>
-        <text x="30" y="30">Master Bedroom</text>
-      </g>
-      <g transform="translate(200, 150)" class="room">
-        <rect height=150 width=100 fill=red></rect>
-        <text x="20" y="20">Laundry</text>
-      </g>
-      <g transform="translate(300, 150)" class="room">
-        <rect x=50 height=100 width=50 fill=red></rect>
+  <body style="background-color:white">
+    <div>
+      <p style="font-size:3em;margin:0">Refuge Home Automation</p>
+      <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
+    </div>
 
-        <line x1="0" y1="10" x2="100" y2="10"></line>
-        <line x1="0" y1="20" x2="100" y2="20"></line>
-        <line x1="0" y1="30" x2="100" y2="30"></line>
-        <line x1="0" y1="40" x2="100" y2="40"></line>
-        <line x1="0" y1="50" x2="100" y2="50"></line>
-        <line x1="0" y1="60" x2="100" y2="60"></line>
-        <line x1="0" y1="70" x2="100" y2="70"></line>
-        <line x1="0" y1="80" x2="100" y2="80"></line>
-        <line x1="0" y1="90" x2="100" y2="90"></line>
+    <!--  Floor 1-->
+    <svg height=600 width=600>
+      <style>
+        .room rect {
+          fill: transparent;
+          stroke: black;
+          stroke-width: 2;
+        }
+        line { stroke-width: 1; stroke: black}
+        .room text { font: normal 13px sans-serif; }
+      </style>
+      <!-- <text x="50" y="50">Garage</text> -->
+      <g transform="translate(50,50)">
+        <g class="room">
+          <rect height=350 width=200></rect>
+          <text x="50" y="50">Garage</text>
+        </g>
+        <g transform="translate(200,0)" class="room">
+          <rect height=150 width=200></rect>
+          <text x="50" y="50">Living</text>
+        </g>
+        <g transform="translate(400,0)" class="room">
+          <rect height=150 width=150></rect>
+          <text x="50" y="50">Dining</text>
+        </g>
+        <g transform="translate(400, 150)" class="room">
+          <rect height=200 width=150></rect>
+          <text x="50" y="50">Kitchen</text>
+        </g>
+        <g transform="translate(200, 300)" class="room">
+          <rect height=50 width=200></rect>
+          <text x="30" y="30">Hallway</text>
+        </g>
+        <g transform="translate(200, 350)" class="room">
+          <rect height=150 width=200></rect>
+          <text x="30" y="30">Master Bedroom</text>
+        </g>
+        <g transform="translate(200, 150)" class="room">
+          <rect height=150 width=100 fill=red></rect>
+          <text x="20" y="20">Laundry</text>
+        </g>
+        <g transform="translate(300, 150)" class="room">
+          <rect x=50 height=100 width=50 fill=red></rect>
 
-        <rect height=100 width=50 fill=red></rect>
-        <text x="20" y="120">Stairs</text>
-      </g>
-    </g>
-  </svg>
-  <!--  Floor 2-->
-  <svg transform="translate(450,0)" height=600 width=600>
-    <style>
-      .room rect {
-        fill: transparent;
-        stroke: black;
-        stroke-width: 2;
-      }
-      line { stroke-width: 1; stroke: black}
-      .room text { font: normal 13px sans-serif; }
-    </style>
-    <g transform="translate(50,50)">
-      <g transform="translate(200,0)" class="room">
-        <rect height=150 width=250></rect>
-        <text x="30" y="50">Family</text>
-      </g>
-      <g transform="translate(450,0)" class="room">
-        <rect height=150 width=100></rect>
-        <text x="30" y="50">Office</text>
-      </g>
-      <g transform="translate(450, 150)" class="room">
-        <rect height=200 width=100></rect>
-        <text x="30" y="50">Bedroom</text>
-      </g>
-      <g transform="translate(400, 150)" class="room">
-        <rect height=200 width=50></rect>
-      </g>
-      <g transform="translate(200, 300)" class="room">
-        <rect height=50 width=200></rect>
-        <text x="130" y="30">Hallway</text>
-      </g>
-      <g transform="translate(200, 350)" class="room">
-        <rect height=150 width=200></rect>
-        <text x="30" y="30">Kids Bedroom</text>
-      </g>
-      <g transform="translate(200, 150)" class="room">
-        <rect height=150 width=100 fill=red></rect>
-        <text x="20" y="20">Bathroom</text>
-      </g>
-      <g transform="translate(300, 150)" class="room">
-        <rect x=50 height=100 width=50 fill=red></rect>
+          <line x1="0" y1="10" x2="100" y2="10"></line>
+          <line x1="0" y1="20" x2="100" y2="20"></line>
+          <line x1="0" y1="30" x2="100" y2="30"></line>
+          <line x1="0" y1="40" x2="100" y2="40"></line>
+          <line x1="0" y1="50" x2="100" y2="50"></line>
+          <line x1="0" y1="60" x2="100" y2="60"></line>
+          <line x1="0" y1="70" x2="100" y2="70"></line>
+          <line x1="0" y1="80" x2="100" y2="80"></line>
+          <line x1="0" y1="90" x2="100" y2="90"></line>
 
-        <line x1="0" y1="10" x2="100" y2="10"></line>
-        <line x1="0" y1="20" x2="100" y2="20"></line>
-        <line x1="0" y1="30" x2="100" y2="30"></line>
-        <line x1="0" y1="40" x2="100" y2="40"></line>
-        <line x1="0" y1="50" x2="100" y2="50"></line>
-        <line x1="0" y1="60" x2="100" y2="60"></line>
-        <line x1="0" y1="70" x2="100" y2="70"></line>
-        <line x1="0" y1="80" x2="100" y2="80"></line>
-        <line x1="0" y1="90" x2="100" y2="90"></line>
-
-        <rect height=100 width=50 fill=red></rect>
-        <text x="20" y="120">Stairs</text>
+          <rect height=100 width=50 fill=red></rect>
+          <text x="20" y="120">Stairs</text>
+        </g>
       </g>
-    </g>
-  </svg>
+    </svg>
+    <!--  Floor 2-->
+    <svg transform="translate(650,0)" height=600 width=600>
+      <style>
+        .room rect {
+          fill: transparent;
+          stroke: black;
+          stroke-width: 2;
+        }
+        line { stroke-width: 1; stroke: black}
+        .room text { font: normal 13px sans-serif; }
+      </style>
+      <g transform="translate(50,50)">
+        <g class="room">
+          <rect height=150 width=250></rect>
+          <text x="30" y="50">Family</text>
+        </g>
+        <g transform="translate(250,0)" class="room">
+          <rect height=150 width=100></rect>
+          <text x="30" y="50">Office</text>
+        </g>
+        <g transform="translate(250, 150)" class="room">
+          <rect height=200 width=100></rect>
+          <text x="30" y="50">Bedroom</text>
+        </g>
+        <g transform="translate(200, 150)" class="room">
+          <rect height=200 width=50></rect>
+        </g>
+        <g transform="translate(0, 300)" class="room">
+          <rect height=50 width=200></rect>
+          <text x="130" y="30">Hallway</text>
+        </g>
+        <g transform="translate(0, 350)" class="room">
+          <rect height=150 width=200></rect>
+          <text x="30" y="30">Kids Bedroom</text>
+        </g>
+        <g transform="translate(0, 150)" class="room">
+          <rect height=150 width=100 fill=red></rect>
+          <text x="20" y="20">Bathroom</text>
+        </g>
+        <g transform="translate(100, 150)" class="room">
+          <rect x=50 height=100 width=50 fill=red></rect>
+
+          <line x1="0" y1="10" x2="100" y2="10"></line>
+          <line x1="0" y1="20" x2="100" y2="20"></line>
+          <line x1="0" y1="30" x2="100" y2="30"></line>
+          <line x1="0" y1="40" x2="100" y2="40"></line>
+          <line x1="0" y1="50" x2="100" y2="50"></line>
+          <line x1="0" y1="60" x2="100" y2="60"></line>
+          <line x1="0" y1="70" x2="100" y2="70"></line>
+          <line x1="0" y1="80" x2="100" y2="80"></line>
+          <line x1="0" y1="90" x2="100" y2="90"></line>
+
+          <rect height=100 width=50 fill=red></rect>
+          <text x="20" y="120">Stairs</text>
+        </g>
+      </g>
+    </svg>
+    <svg class="thermo" id="thermoTemplate" height=50 width=50 style="left:100px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;fill:blue" x=15 y=15 class="temp">80</text><text style="font: normal 13px sans-serif;" x=15 y=28 class="temp">70</text><text style="font: normal 13px sans-serif;fill:red" x=15 y=41 class="temp">68</text><circle cx=25 cy=25 r=24 style="stroke:red;fill:transparent"></circle></svg>
+    <svg class="switch" id="switchTemplate" height=50 width=50 style="left:200px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;" x=15 y=25 class="temp">Off</text><circle cx=25 cy=25 r=24 style="stroke:blue;fill:transparent"></circle></svg>
+    <svg class="portal" id="portalTemplate" height=50 width=50 style="left:300px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;" x=5 y=25 class="temp">?</text><circle cx=25 cy=25 r=24 style="stroke:green;fill:transparent"></circle></svg>
   </body>
+  <script>
+    var ws;
+
+    var toggle = document.getElementById("unittoggle");
+    toggle.addEventListener("click", toggleUnits);
+
+    var units = localStorage.getItem("units");
+
+    if (units == "F") {
+        toggle.innerText = "Fahrenheit";
+    } else {
+        toggle.innerText = "Celcius";
+    }
+
+    console.log("Starting websocket...")
+    onClose(); // Reconnects the web socket
+
+    // websocket functions
+    function onOpen(event) {
+      console.log("Socket opened.");
+    }
+
+    function onMessage(event) {
+      var msg = JSON.parse(event.data);
+      console.log("Device update: ", msg)
+      if (msg.Thermostat != null) {
+        updateThermo(msg.Thermostat);
+      }
+      if (msg.Switch != null) {
+        updateSwitch(msg.Switch);
+      }
+      if (msg.Portal != null) {
+        updatePortal(msg.Portal);
+      }
+    }
+
+    function onClose(event) {
+      var timeout = 0;
+      if (ws) {
+        console.log("Reconnecting...")
+        timeout = 1000;
+      }
+      setTimeout(function(){
+        ws = new WebSocket("ws://" + location.host + "/stream");
+        ws.addEventListener('close', onClose)
+        ws.addEventListener('open', onOpen)
+        ws.addEventListener('message', onMessage);
+      }, timeout)
+    }
+
+    function updateThermo(msg) {
+      var id = "d" + msg.Name.replace(" ", "");
+      var itemEle = document.getElementById(id);
+      if (itemEle == null) {
+        console.log("Couldn't find existing icon for device " + msg.Name + "... Constructing now: ", id, msg);
+        itemEle = document.getElementById("thermoTemplate").cloneNode(true);
+        itemEle.id = id;
+        itemEle.style.display = "block";
+        itemEle.childNodes[0].textContent = msg.Name;
+        addMoveListeners(itemEle);
+        document.body.appendChild(itemEle);
+      }
+      var units = localStorage.getItem("units");
+      if (units == null) {
+        units = "C";
+      }
+      var target = 0;
+      if (msg.State == 1) {
+        target = msg.High - 1.5;
+      } else if (msg.State == 3) {
+        target = msg.Low + 1.5;
+      }
+      if (units == "F") {
+        target = convertToF(target);
+        msg.Temp = convertToF(msg.Temp);
+        msg.Low = convertToF(msg.Low);
+        msg.High = convertToF(msg.High);
+      }
+      // Now update the values for current temp/hum and target.
+      // thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
+      itemEle.childNodes[2].textContent = msg.Temp.toFixed(1);
+      itemEle.childNodes[1].textContent = msg.High.toFixed(0);
+      itemEle.childNodes[3].textContent = msg.Low.toFixed(0);
+    }
+
+    function updatePortal(msg) {
+      var id = "d" + msg.Name.replace(" ", "");
+      var itemEle = document.getElementById(id);
+      if (itemEle == null) {
+        console.log("Couldn't find existing icon for device " + msg.Name + "... Constructing now: ", id, msg);
+        itemEle = document.getElementById("portalTemplate").cloneNode(true);
+        itemEle.id = id;
+        itemEle.style.display = "block";
+        itemEle.childNodes[0].textContent = msg.Name;
+        addMoveListeners(itemEle);
+        document.body.appendChild(itemEle);
+      }
+      var text = "Unknown"
+      if (msg.State == 1) {
+        text = "Closed"
+      } else if (msg.State == 2) {
+        text = "Open"
+      }
+      itemEle.childNodes[1].textContent = text;
+    }
+
+    function updateSwitch(msg) {
+      var id = "d" + msg.Name.replace(" ", "");
+      var itemEle = document.getElementById(id);
+      if (itemEle == null) {
+        console.log("Couldn't find existing icon for device " + msg.Name + "... Constructing now: ", id, msg);
+        itemEle = document.getElementById("switchTemplate").cloneNode(true);
+        itemEle.id = id;
+        itemEle.style.display = "block";
+        itemEle.childNodes[0].textContent = msg.Name;
+        addMoveListeners(itemEle);
+        document.body.appendChild(itemEle);
+      }
+      var text = "Off"
+      if (msg.On) {
+        text = "On"
+      }
+      itemEle.childNodes[1].textContent = text;
+    }
+
+    function addMoveListeners(itemEle) {
+      var mousedown = false;
+      var offx = 0;
+      var offy = 0;
+      itemEle.addEventListener("mousedown", function(e){
+        mousedown = true;
+        offx = -e.offsetX;
+        offy = -e.offsetY;
+      });
+      window.addEventListener("mouseup", function(){
+        mousedown = false;
+        // TODO: send the result to the server to store the location of that device.
+      });
+      window.addEventListener("mousemove", function(e){
+        if (!mousedown) {
+          return;
+        }
+        itemEle.style.left = (offx + e.x) + "px";
+        itemEle.style.top = (offy + e.y) + "px";
+      });
+    }
+
+    function toggleUnits() {
+      var units = localStorage.getItem("units");
+      var toggle = document.getElementById("unittoggle");
+
+      if (units == "F") {
+        localStorage.setItem("units" , "C");
+        toggle.innerText = "Celcius";
+      } else {
+        localStorage.setItem("units" , "F");
+        toggle.innerText = "Fahrenheit";
+      }
+    }
+
+    function convertToF(v) {
+      return (v*1.8) + 32;
+    }
+
+    function convertToC(v) {
+      return (v-32) / 1.8;
+    }
+  </script>
 </html>

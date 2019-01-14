@@ -12,11 +12,25 @@ import (
 func fakeMonitor() chan rnet.Msg {
 	tstream := make(chan rnet.Msg, 10)
 	go func() {
+		i := 0
 		for {
 			tstream <- rnet.Msg{
-				Thermostat: &rnet.Thermostat{Name: "Test Thermo", Temp: 15.3456, Humidity: 10.1},
+				Thermostat: &rnet.Thermostat{Name: "Test Living Room", Temp: 17 + (float32(i % 3)), Humidity: 10.1, High: 30, Low: 18},
 			}
-			time.Sleep(10 * time.Second)
+			time.Sleep(3 * time.Second)
+			tstream <- rnet.Msg{
+				Thermostat: &rnet.Thermostat{Name: "Test Family Room", Temp: 17 + (float32(i % 3)), Humidity: 10.1, High: 30, Low: 18},
+			}
+			time.Sleep(3 * time.Second)
+			tstream <- rnet.Msg{
+				Switch: &rnet.Switch{Name: "Test Fireplace", On: i%2 == 0},
+			}
+			time.Sleep(3 * time.Second)
+			tstream <- rnet.Msg{
+				Portal: &rnet.Portal{Name: "Test Garage Door", State: rnet.PortalState(i % 3)},
+			}
+			time.Sleep(3 * time.Second)
+			i++
 		}
 	}()
 

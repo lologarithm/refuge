@@ -86,7 +86,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Technically not sending anything over template right now...
-		tmpl, err := template.ParseFiles("./assets/index.html")
+		tmpl, err := template.ParseFiles("./assets/house.html")
 		if err != nil {
 			log.Fatalf("unable to parse html: %s", err)
 		}

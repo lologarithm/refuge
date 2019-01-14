@@ -114,10 +114,10 @@
   }
 
   function onClose(event) {
-    var timeout = 1000;
+    var timeout = 0;
     if (ws) {
       console.log("Reconnecting...")
-      timeout = 0;
+      timeout = 1000;
     }
     setTimeout(function(){
       ws = new WebSocket("ws://" + location.host + "/stream");
@@ -227,7 +227,7 @@
       }
       state = "Heating to " + adjusted;
     }
-    
+
     if (units == "F") {
       thdata.Temp = convertToF(thdata.Temp);
       thdata.Low = convertToF(thdata.Low);
