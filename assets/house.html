@@ -1,0 +1,122 @@
+<html>
+  <head>
+    <style> svg {position: absolute;}</style>
+  </head>
+  <body>
+  <svg height=600 width=600>
+    <style>
+      .room rect {
+        fill: transparent;
+        stroke: black;
+        stroke-width: 2;
+      }
+      line { stroke-width: 1; stroke: black}
+      .room text { font: normal 13px sans-serif; }
+    </style>
+    <!-- <text x="50" y="50">Garage</text> -->
+    <g transform="translate(50,50)">
+      <g clamss="room">
+        <rect height=350 width=200></rect>
+        <text x="50" y="50">Garage</text>
+      </g>
+      <g transform="translate(200,0)" class="room">
+        <rect height=150 width=200></rect>
+        <text x="50" y="50">Living</text>
+      </g>
+      <g transform="translate(400,0)" class="room">
+        <rect height=150 width=150></rect>
+        <text x="50" y="50">Dining</text>
+      </g>
+      <g transform="translate(400, 150)" class="room">
+        <rect height=200 width=150></rect>
+        <text x="50" y="50">Kitchen</text>
+      </g>
+      <g transform="translate(200, 300)" class="room">
+        <rect height=50 width=200></rect>
+        <text x="30" y="30">Hallway</text>
+      </g>
+      <g transform="translate(200, 350)" class="room">
+        <rect height=150 width=200></rect>
+        <text x="30" y="30">Master Bedroom</text>
+      </g>
+      <g transform="translate(200, 150)" class="room">
+        <rect height=150 width=100 fill=red></rect>
+        <text x="20" y="20">Laundry</text>
+      </g>
+      <g transform="translate(300, 150)" class="room">
+        <rect x=50 height=100 width=50 fill=red></rect>
+
+        <line x1="0" y1="10" x2="100" y2="10"></line>
+        <line x1="0" y1="20" x2="100" y2="20"></line>
+        <line x1="0" y1="30" x2="100" y2="30"></line>
+        <line x1="0" y1="40" x2="100" y2="40"></line>
+        <line x1="0" y1="50" x2="100" y2="50"></line>
+        <line x1="0" y1="60" x2="100" y2="60"></line>
+        <line x1="0" y1="70" x2="100" y2="70"></line>
+        <line x1="0" y1="80" x2="100" y2="80"></line>
+        <line x1="0" y1="90" x2="100" y2="90"></line>
+
+        <rect height=100 width=50 fill=red></rect>
+        <text x="20" y="120">Stairs</text>
+      </g>
+    </g>
+  </svg>
+
+  <svg transform="translate(450,0)" height=600 width=600>
+    <style>
+      .room rect {
+        fill: transparent;
+        stroke: black;
+        stroke-width: 2;
+      }
+      line { stroke-width: 1; stroke: black}
+      .room text { font: normal 13px sans-serif; }
+    </style>
+    <g transform="translate(50,50)">
+      <g transform="translate(200,0)" class="room">
+        <rect height=150 width=250></rect>
+        <text x="30" y="50">Family</text>
+      </g>
+      <g transform="translate(450,0)" class="room">
+        <rect height=150 width=100></rect>
+        <text x="30" y="50">Office</text>
+      </g>
+      <g transform="translate(450, 150)" class="room">
+        <rect height=200 width=100></rect>
+        <text x="30" y="50">Bedroom</text>
+      </g>
+      <g transform="translate(400, 150)" class="room">
+        <rect height=200 width=50></rect>
+      </g>
+      <g transform="translate(200, 300)" class="room">
+        <rect height=50 width=200></rect>
+        <text x="130" y="30">Hallway</text>
+      </g>
+      <g transform="translate(200, 350)" class="room">
+        <rect height=150 width=200></rect>
+        <text x="30" y="30">Kids Bedroom</text>
+      </g>
+      <g transform="translate(200, 150)" class="room">
+        <rect height=150 width=100 fill=red></rect>
+        <text x="20" y="20">Bathroom</text>
+      </g>
+      <g transform="translate(300, 150)" class="room">
+        <rect x=50 height=100 width=50 fill=red></rect>
+
+        <line x1="0" y1="10" x2="100" y2="10"></line>
+        <line x1="0" y1="20" x2="100" y2="20"></line>
+        <line x1="0" y1="30" x2="100" y2="30"></line>
+        <line x1="0" y1="40" x2="100" y2="40"></line>
+        <line x1="0" y1="50" x2="100" y2="50"></line>
+        <line x1="0" y1="60" x2="100" y2="60"></line>
+        <line x1="0" y1="70" x2="100" y2="70"></line>
+        <line x1="0" y1="80" x2="100" y2="80"></line>
+        <line x1="0" y1="90" x2="100" y2="90"></line>
+
+        <rect height=100 width=50 fill=red></rect>
+        <text x="20" y="120">Stairs</text>
+      </g>
+    </g>
+  </svg>
+  </body>
+</html>
