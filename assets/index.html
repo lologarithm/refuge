@@ -120,7 +120,11 @@
       timeout = 1000;
     }
     setTimeout(function(){
-      ws = new WebSocket("ws://" + location.host + "/stream");
+      var prot = "wss://"
+      if (location.protocol != 'https:') {
+        prot = "ws://"
+      }
+      ws = new WebSocket(prot + location.host + "/stream");
       ws.addEventListener('close', onClose)
       ws.addEventListener('open', onOpen)
       ws.addEventListener('message', onMessage);
