@@ -130,6 +130,8 @@
   </body>
   <script>
     var ws;
+    var user;
+    var pwd;
 
     var toggle = document.getElementById("unittoggle");
     toggle.addEventListener("click", toggleUnits);
@@ -165,6 +167,9 @@
     }
 
     function onClose(event) {
+      if (event) {
+        console.log("Closed event: ", event);
+      }
       var timeout = 0;
       if (ws) {
         console.log("Reconnecting...")
