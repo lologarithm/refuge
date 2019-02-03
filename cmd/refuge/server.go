@@ -85,7 +85,18 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	http.HandleFunc("/stream", makeClientStream(updates, pd))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Request: %#v", r)
+		if addr := r.Header.Get("X-Echols-A"); addr != "" {
+			// Do Auth!
+			log.Printf("Forwarded from: %#v", addr)
+			if !strings.HasPrefix(addr, "192.168.") {
+				user, pwd, ok := r.BasicAuth()
+				if !ok || user != "echols" || pwd != "family" {
+					w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
+					w.WriteHeader(http.StatusForbidden)
+					w.Write([]byte("NO ACCESS."))
+				}
+			}
+		}
 		// Technically not sending anything over template right now...
 		tmpl, err := template.ParseFiles("./assets/house.html")
 		if err != nil {
