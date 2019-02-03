@@ -85,6 +85,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	http.HandleFunc("/stream", makeClientStream(updates, pd))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Request: %#v", r)
 		// Technically not sending anything over template right now...
 		tmpl, err := template.ParseFiles("./assets/house.html")
 		if err != nil {
@@ -92,6 +93,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		}
 		tmpl.Execute(w, nil)
 	})
+
 	log.Printf("starting webhost on: %s", host)
 	err := http.ListenAndServe(host, nil)
 	if err != nil {
