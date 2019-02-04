@@ -14,6 +14,41 @@ import (
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
+var users map[string]userAccess
+
+type userAccess struct {
+	Name   string
+	Pwd    string
+	Access int
+}
+
+// Access levels
+const (
+	AccessNone  int = 0
+	AccessRead      = 1
+	AccessWrite     = 2
+)
+
+func auth(w http.ResponseWriter, r *http.Request) int {
+	addr := r.RemoteAddr
+	if paddr := r.Header.Get("X-Echols-A"); paddr != "" {
+		addr = paddr
+	}
+	// Allow intra-net access without auth.
+	if !strings.HasPrefix(addr, "192.168.") && !strings.HasPrefix(addr, "127.0.0.1") {
+		name, pwd, _ := r.BasicAuth()
+		user, ok := users[name]
+		if !ok || user.Pwd != pwd {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("NO ACCESS."))
+			return AccessNone
+		}
+		return user.Access
+	}
+	return AccessWrite
+}
+
 type PageData struct {
 	*sync.Mutex // Mutex for the thermostat list
 	Thermostats map[string]rnet.Thermostat
@@ -86,19 +121,9 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	http.HandleFunc("/stream", makeClientStream(updates, pd))
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if addr := r.Header.Get("X-Echols-A"); addr != "" {
-			// Do Auth!
-			// if !strings.HasPrefix(addr, "192.168.") {
-			user, pwd, ok := r.BasicAuth()
-			if !ok || user != "echols" || pwd != "family" {
-				w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte("NO ACCESS."))
-				return
-			}
-			// }
+		if auth(w, r) == AccessNone {
+			return // Don't let them access
 		}
-
 		// Technically not sending anything over template right now...
 		tmpl, err := template.ParseFiles("./assets/house.html")
 		if err != nil {
@@ -142,20 +167,11 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 	}()
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		if addr := r.Header.Get("X-Echols-A"); addr != "" {
-			// Do Auth!
-			// if !strings.HasPrefix(addr, "192.168.") {
-			user, pwd, ok := r.BasicAuth()
-			if !ok || user != "echols" || pwd != "family" {
-				w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
-				w.WriteHeader(http.StatusUnauthorized)
-				w.Write([]byte("NO ACCESS."))
-				return
-			}
-			// }
+		access := auth(w, r)
+		if access == AccessNone {
+			return
 		}
-
-		c := clientStream(w, r, pd)
+		c := clientStream(w, r, access, pd)
 		pd.Lock()
 		for _, v := range pd.Switches {
 			c.WriteJSON(&rnet.Msg{Switch: &v})
@@ -173,7 +189,7 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 	}
 }
 
-func clientStream(w http.ResponseWriter, r *http.Request, pd *PageData) *websocket.Conn {
+func clientStream(w http.ResponseWriter, r *http.Request, access int, pd *PageData) *websocket.Conn {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -187,6 +203,10 @@ func clientStream(w http.ResponseWriter, r *http.Request, pd *PageData) *websock
 			if err != nil {
 				log.Println("read err:", err)
 				break
+			}
+			// Readers can't write new settings
+			if access != AccessWrite {
+				continue
 			}
 			if v.Climate != nil {
 				writeNewTherm(*v.Climate, pd)
