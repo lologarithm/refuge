@@ -1,2 +1,3 @@
 cmd/thermo/thermo
 cmd/switch/switch
+config.json

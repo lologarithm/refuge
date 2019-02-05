@@ -8,13 +8,12 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
-
-var users map[string]userAccess
 
 type userAccess struct {
 	Name   string
@@ -37,7 +36,7 @@ func auth(w http.ResponseWriter, r *http.Request) int {
 	// Allow intra-net access without auth.
 	if !strings.HasPrefix(addr, "192.168.") && !strings.HasPrefix(addr, "127.0.0.1") {
 		name, pwd, _ := r.BasicAuth()
-		user, ok := users[name]
+		user, ok := globalConfig.Users[name]
 		if !ok || user.Pwd != pwd {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
 			w.WriteHeader(http.StatusUnauthorized)
@@ -56,6 +55,13 @@ type PageData struct {
 	Portals     map[string]rnet.Portal
 }
 
+type PortalState struct {
+	rnet.Portal
+	lastUpdate time.Time
+	lastOpened time.Time
+	lastEmail  time.Time
+}
+
 // Request is sent from websocket client to server to request change to someting
 type Request struct {
 	Climate *ClimateChange
@@ -69,6 +75,8 @@ type ClimateChange struct {
 	Name string // name of thermo to change
 }
 
+const alertTime = time.Minute * 30
+
 func serve(host string, deviceStream chan rnet.Msg) {
 	// localTime := time.Location{}
 	pd := &PageData{
@@ -80,10 +88,46 @@ func serve(host string, deviceStream chan rnet.Msg) {
 
 	updates := make(chan []byte, 10)
 
+	portalUpdates := make(chan rnet.Portal, 5)
+	go func(c *Config) {
+		// Portal watcher
+		portals := map[string]*PortalState{}
+		for {
+			select {
+			case up := <-portalUpdates:
+				existing, ok := portals[up.Name]
+				if !ok {
+					existing = &PortalState{}
+					portals[up.Name] = existing
+				}
+				if existing.State != rnet.PortalStateOpen && up.State == rnet.PortalStateOpen {
+					// If just opened, set the time.
+					existing.lastOpened = time.Now()
+				} else if up.State != rnet.PortalStateOpen {
+					// if not open now, keep updating.
+					existing.lastOpened = time.Now()
+				}
+				existing.Portal = up
+				existing.lastUpdate = time.Now()
+			case <-time.After(time.Second * 15):
+			}
+
+			for _, p := range portals {
+				upDiff := time.Now().Sub(p.lastUpdate)
+				opDiff := time.Now().Sub(p.lastOpened)
+				emailDiff := time.Now().Sub(p.lastEmail)
+				if upDiff > alertTime || opDiff > alertTime || emailDiff > time.Hour {
+					log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
+					p.lastEmail = time.Now()
+					sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
+				}
+			}
+		}
+	}(&globalConfig)
+
 	go func() {
 		for {
 			msg := <-deviceStream
-
 			switch {
 			case msg.Thermostat != nil:
 				td := msg.Thermostat
@@ -91,26 +135,22 @@ func serve(host string, deviceStream chan rnet.Msg) {
 				pd.Lock()
 				pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = *td
 				pd.Unlock()
-				log.Printf("Thermo state is now: %#v", td)
 			case msg.Switch != nil:
 				fd := msg.Switch
 				// Update our cached thermostats
 				pd.Lock()
 				pd.Switches[strings.Replace(fd.Name, " ", "", -1)] = *fd
 				pd.Unlock()
-				log.Printf("Switch state is now: %#v", fd)
 			case msg.Portal != nil:
 				p := msg.Portal
 				// Update our cached thermostats
 				pd.Lock()
 				pd.Portals[strings.Replace(p.Name, " ", "", -1)] = *p
 				pd.Unlock()
-				log.Printf("Portal state is now: %#v", p)
-
+				portalUpdates <- *p
 			}
 			// Now push the update to all connected websockets
 			d, err := json.Marshal(msg)
-			log.Printf("Writing: %v", string(d))
 			if err != nil {
 				log.Printf("Failed to marshal thermal data to json: %s", err)
 			}
@@ -192,7 +232,7 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 func clientStream(w http.ResponseWriter, r *http.Request, access int, pd *PageData) *websocket.Conn {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Print("upgrade failure:", err)
 		return nil
 	}
 

@@ -26,10 +26,12 @@ func fakeMonitor() chan rnet.Msg {
 				Switch: &rnet.Switch{Name: "Test Fireplace", On: i%2 == 0},
 			}
 			time.Sleep(3 * time.Second)
-			tstream <- rnet.Msg{
-				Portal: &rnet.Portal{Name: "Test Garage Door", State: rnet.PortalState(i % 3)},
+			if i == 0 {
+				tstream <- rnet.Msg{
+					Portal: &rnet.Portal{Name: "Test Garage Door", State: rnet.PortalState(i % 3)},
+				}
+				time.Sleep(3 * time.Second)
 			}
-			time.Sleep(3 * time.Second)
 			i++
 		}
 	}()
