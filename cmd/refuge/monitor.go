@@ -39,6 +39,7 @@ func fakeMonitor() chan rnet.Msg {
 	return tstream
 }
 
+// monitor monitors for network messages and decodes/passes them along to the main processor
 func monitor(test bool) chan rnet.Msg {
 	if test {
 		return fakeMonitor()
@@ -92,5 +93,55 @@ func ping() {
 	n, err := udpConn.WriteToUDP([]byte("{}"), rnet.RefugeDiscovery)
 	if n == 0 || err != nil {
 		log.Fatalf("Bytes: %d, Err: %s", n, err)
+	}
+}
+
+type PortalState struct {
+	rnet.Portal
+	lastUpdate time.Time
+	lastOpened time.Time
+	lastEmail  time.Time
+	numEmails  int
+}
+
+const alertTime = time.Minute * 30
+
+func portalAlert(c *Config, portalUpdates chan rnet.Portal) {
+	// Portal watcher
+	portals := map[string]*PortalState{}
+	for {
+		select {
+		case up := <-portalUpdates:
+			existing, ok := portals[up.Name]
+			if !ok {
+				existing = &PortalState{}
+				portals[up.Name] = existing
+			}
+			if existing.State != rnet.PortalStateOpen && up.State == rnet.PortalStateOpen {
+				// If just opened, set the time.
+				existing.lastOpened = time.Now()
+			} else if up.State != rnet.PortalStateOpen {
+				// if not open now, keep updating.
+				existing.lastOpened = time.Now()
+			}
+			existing.Portal = up
+			existing.lastUpdate = time.Now()
+		case <-time.After(time.Minute * 5):
+			ping()
+		}
+
+		for _, p := range portals {
+			upDiff := time.Now().Sub(p.lastUpdate)
+			opDiff := time.Now().Sub(p.lastOpened)
+			emailDiff := time.Now().Sub(p.lastEmail)
+			// If our garage isn't working correctly or left open, send an alert
+			// But only email once per hour (backing off one hour extra each time)
+			if (upDiff > alertTime || opDiff > alertTime) && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
+				log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
+				p.lastEmail = time.Now()
+				p.numEmails++
+				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
+			}
+		}
 	}
 }

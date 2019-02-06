@@ -1,0 +1,23 @@
+@startuml
+
+actor Client
+boundary WebServer
+control "Network Listener"
+control Updater
+control ClientListener
+boundary Devices
+
+Client --> WebServer: Give me updates
+create ClientListener
+WebServer -> ClientListener: Listen to client websocket
+
+Devices -> "Network Listener": Change Event
+"Network Listener" -> Updater: Network Events
+Updater -> WebServer: Update state
+Updater -> Client: Event Data
+
+Client -> ClientListener: Change Request
+ClientListener -> Devices: Request Change
+Devices -> "Network Listener": Change Event
+
+@enduml
