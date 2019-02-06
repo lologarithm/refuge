@@ -14,6 +14,7 @@ func togglePortal(port rnet.Portal) {
 	if port.State == rnet.PortalStateOpen {
 		state = rnet.PortalStateClosed
 	}
+	log.Printf("Toggling Portal (%#v).", port)
 
 	raddr, err := net.ResolveUDPAddr("udp", port.Addr)
 	if err != nil {

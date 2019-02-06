@@ -149,8 +149,10 @@ func auth(w http.ResponseWriter, r *http.Request) int {
 	if paddr := r.Header.Get("X-Echols-A"); paddr != "" {
 		addr = paddr
 	}
+
 	// Allow intra-net access without auth.
-	if !strings.HasPrefix(addr, "192.168.") && !strings.HasPrefix(addr, "127.0.0.1") {
+	if !strings.HasPrefix(addr, "192.168.") && !strings.HasPrefix(addr, "127.0.0.1") && !strings.HasPrefix(addr, "[::1]") {
+		log.Printf("Unauthed User: %s", addr)
 		name, pwd, _ := r.BasicAuth()
 		user, ok := globalConfig.Users[name]
 		if !ok || user.Pwd != pwd {
