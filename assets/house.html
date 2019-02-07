@@ -1,6 +1,21 @@
 <html>
   <head>
     <style> svg {position: absolute;}</style>
+    <style>
+      svg text {
+        -webkit-user-select: none;
+           -moz-user-select: none;
+            -ms-user-select: none;
+                user-select: none;
+      }
+      .room rect {
+        fill: transparent;
+        stroke: black;
+        stroke-width: 2;
+      }
+      line { stroke-width: 1; stroke: black}
+      .room text { font: normal 13px sans-serif; pointer-events: none;}
+    </style>
   </head>
   <body style="background-color:white">
     <div>
@@ -11,15 +26,6 @@
 
     <!--  Floor 1-->
     <svg height=600 width=600>
-      <style>
-        .room rect {
-          fill: transparent;
-          stroke: black;
-          stroke-width: 2;
-        }
-        line { stroke-width: 1; stroke: black}
-        .room text { font: normal 13px sans-serif; }
-      </style>
       <!-- <text x="50" y="50">Garage</text> -->
       <g transform="translate(50,50)">
         <g class="room">
@@ -70,15 +76,6 @@
     </svg>
     <!--  Floor 2-->
     <svg transform="translate(650,0)" height=600 width=600>
-      <style>
-        .room rect {
-          fill: transparent;
-          stroke: black;
-          stroke-width: 2;
-        }
-        line { stroke-width: 1; stroke: black}
-        .room text { font: normal 13px sans-serif; }
-      </style>
       <g transform="translate(50,50)">
         <g class="room">
           <rect height=150 width=250></rect>
@@ -129,6 +126,9 @@
     <svg class="thermo" id="thermoTemplate" height=50 width=50 style="left:100px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;fill:blue" x=15 y=15 class="temp">80</text><text style="font: normal 13px sans-serif;" x=15 y=28 class="temp">70</text><text style="font: normal 13px sans-serif;fill:red" x=15 y=41 class="temp">68</text><circle cx=25 cy=25 r=24 style="stroke:red;fill:transparent"></circle></svg>
     <svg class="switch" id="switchTemplate" height=50 width=50 style="left:200px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;" x=15 y=25 class="temp">Off</text><circle cx=25 cy=25 r=24 style="stroke:blue;fill:transparent"></circle></svg>
     <svg class="portal" id="portalTemplate" height=50 width=50 style="left:300px;display:none"><title>unnamed</title><text style="font: normal 12px sans-serif;" x=5 y=25 class="temp">?</text><circle cx=25 cy=25 r=24 style="stroke:green;fill:transparent"></circle></svg>
+    <svg class="thermcontrol" id="tcTemplate" height=200 width=101 style="left: 400px;display:none">
+      <path d="M 0 50 L 0 0 A 100 100 0 0 1 0 200 L 0 150 A 50 50 0 0 0 0 50" style="stroke: black; fill: transparent;"></path>
+    </svg>
   </body>
   <script>
     var ws;
@@ -270,42 +270,68 @@
       var left = 0;
       var top = 0;
       var thermoControl;
+      var touching = false;
 
+      var moveControl = function(x, y) {
+        left = offx + x;
+        top = offy + y;
+        itemEle.style.left = left + "px";
+        itemEle.style.top = top + "px";
+        if (thermoControl) {
+          thermoControl.style.top = top - 75;
+          thermoControl.style.left = left + 25;
+        }
+      }
       itemEle.addEventListener("mousedown", function(e){
+        if (touching) {
+          return;
+        }
+        console.log("mousedown");
         mousedown = Date.now();
         offx = -e.offsetX;
         offy = -e.offsetY;
         var br = itemEle.getClientRects()[0];
-        left = br.left;
-        top = br.top;
+        left = br.left + window.scrollX;
+        top = br.top + window.scrollY;
+        e.preventDefault();
       });
 
       var doInteract = function() {
         if (interType == 1) {
+          if (thermoControl != null) {
+            inter.removeChild(thermoControl);
+            thermoControl = null;
+            return;
+          }
           // click instead of a move
           if (thermoControl == null) {
-            thermoControl = document.createElement("div");
+            thermoControl = document.getElementById("tcTemplate").cloneNode(true);
+            thermoControl.id = "";
+            thermoControl.style.display = "block";
             inter.appendChild(thermoControl);
           }
-          thermoControl.style.backgroundColor = "red";
-          thermoControl.style.width = "40px";
-          thermoControl.style.height = "200px";
-          thermoControl.style.top = top - 50;
-          thermoControl.style.left = left + 55;
+          thermoControl.style.top = top - 75;
+          thermoControl.style.left = left + 25;
           thermoControl.style.position = "absolute";
         }
         if (interType == 2) {
           var msg = JSON.stringify({Portal: {Name: name}})
           ws.send(msg);
+          console.log(msg);
         }
         if (interType == 3) {
           var msg = JSON.stringify({Switch: {Name: name}})
           ws.send(msg);
+          console.log(msg);
         }
       }
       window.addEventListener("mouseup", function(){
+        if (touching) {
+          return;
+        }
         if (mousedown > 0) {
-          if (Date.now() - mousedown < 100) {
+          console.log("mouseup");
+          if (Date.now() - mousedown < 200) {
             doInteract();
           }
         }
@@ -313,40 +339,33 @@
         // TODO: send the result to the server to store the location of that device.
       });
       window.addEventListener("mousemove", function(e){
-        if (mousedown == 0) {
+        if (mousedown == 0 || touching) {
           return;
         }
-        left = offx + e.x;
-        top = offy + e.y;
-        itemEle.style.left = left + "px";
-        itemEle.style.top = top + "px";
+        console.log(e);
+        moveControl(e.pageX, e.pageY);
+        e.preventDefault();
       });
 
       itemEle.addEventListener("touchstart", function(e) {
-        mousedown=Date.now();
+        touching = true;
         var br = itemEle.getClientRects()[0];
-        left = br.left;
-        top = br.top;
+        console.log(itemEle.getClientRects());
+        left = br.left + window.scrollX;
+        top = br.top + window.scrollY;
         offx = left - e.touches[0].pageX;
         offy = top - e.touches[0].pageY;
       }, false);
       itemEle.addEventListener("touchend", function(e) {
-        if (mousedown > 0) {
-          if (Date.now() - mousedown < 100) {
-            doInteract();
-          }
-        }
-        mousedown = 0;
+        touching = false;
       }, false);
       itemEle.addEventListener("touchcancel", function(e) {}, false);
       itemEle.addEventListener("touchmove", function(e) {
-        if (mousedown == 0) {
+        if (!touching) {
           return;
         }
-        left = offx + e.touches[0].pageX;
-        top = offy + e.touches[0].pageY;
-        itemEle.style.left = left + "px";
-        itemEle.style.top = top + "px";
+        moveControl(e.touches[0].pageX, e.touches[0].pageY);
+        e.preventDefault();
       }, false);
     }
 
