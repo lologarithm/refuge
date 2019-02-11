@@ -317,6 +317,7 @@
       var touching = false;
       var thermoVis = false;
 
+      // Setup thermostat control UI
       if (device.thermoControl != null) {
         var grabbing = 0;
         device.thermoControl.addEventListener("mousedown", function(e){
@@ -377,31 +378,35 @@
         })
       }
 
+      // Setup
       var moveControl = function(x, y) {
         left = offx + x;
         top = offy + y;
         device.itemEle.style.left = left + "px";
         device.itemEle.style.top = top + "px";
-        if (thermoControl) {
-          thermoControl.style.top = top- 60;
-          thermoControl.style.left = left + 35;
+        if (device.thermoControl != null && device.thermoControl != undefined) {
+          device.thermoControl.style.top = top- 60;
+          device.thermoControl.style.left = left + 35;
         }
       }
       var doInteract = function() {
         if (device.interType == 1) {
           if (thermoVis) {
-            thermoControl.style.display = "none";
+            device.thermoControl.style.display = "none";
             thermoVis = false;
             return;
           }
           thermoVis = true;
-          thermoControl.style.display = "block";
-          thermoControl.style.top = top- 60;
-          thermoControl.style.left = left + 35;
+          device.thermoControl.style.display = "block";
+          device.thermoControl.style.top = top- 60;
+          device.thermoControl.style.left = left + 35;
+          // Start the range markers hidden
+          device.thermoControl.childNodes[5].style.display = "none";
+          device.thermoControl.childNodes[7].style.display = "none";
           var animateAngle = function(step) {
             if (step > 11) {
-              thermoControl.childNodes[5].style.display = "block";
-              thermoControl.childNodes[7].style.display = "block";
+              device.thermoControl.childNodes[5].style.display = "block";
+              device.thermoControl.childNodes[7].style.display = "block";
               return;
             }
 
@@ -410,13 +415,13 @@
             var x = Math.cos(start+stepA*(step+1));
             var y = Math.sin(start+stepA*(step+1));
             if (step < 6) {
-              thermoControl.childNodes[1].setAttribute("d", "M 0 50 L 0 0 A 100 100 0 0 1 " + (x * 100) + " " + (100+(y*100)) + " L " + (x*50) + " " + (100+(y*50)) + " A 50 50 0 0 0 0 50");
+              device.thermoControl.childNodes[1].setAttribute("d", "M 0 50 L 0 0 A 100 100 0 0 1 " + (x * 100) + " " + (100+(y*100)) + " L " + (x*50) + " " + (100+(y*50)) + " A 50 50 0 0 0 0 50");
             } else {
-              thermoControl.childNodes[3].setAttribute("d", "M 50 100 L 100 100 A 100 100 0 0 1 " + (x * 100) + " " + (100+(y*100)) + " L " + (x*50) + " " + (100+(y*50)) + " A 50 50 0 0 0 50 100");
+              device.thermoControl.childNodes[3].setAttribute("d", "M 50 100 L 100 100 A 100 100 0 0 1 " + (x * 100) + " " + (100+(y*100)) + " L " + (x*50) + " " + (100+(y*50)) + " A 50 50 0 0 0 50 100");
             }
             window.requestAnimationFrame(function(){ animateAngle(step+1)});
           }
-          thermoControl.childNodes[3].setAttribute("d", "");
+          device.thermoControl.childNodes[3].setAttribute("d", "");
           animateAngle(0);
         }
         if (device.interType == 2) {
@@ -523,10 +528,11 @@
     }
 
     function getUnits() {
-      if (units == null) {
-        units = "C";
+      var lunits = localStorage.getItem("units");
+      if (lunits == null) {
+        lunits = "C";
       }
-      return units;
+      return lunits;
     }
 
     function convertToF(v) {
