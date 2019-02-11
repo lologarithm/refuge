@@ -84,15 +84,15 @@ func ping() {
 	// Ping network to find stuff.
 	local, err := net.ResolveUDPAddr("udp", ":0")
 	if err != nil {
-		log.Fatalf("Failed to request a ping from discovery network: %s", err)
+		log.Printf("[Error] Failed to request a ping from discovery network: %s", err)
 	}
 	udpConn, err := net.ListenUDP("udp", local)
 	if err != nil {
-		log.Fatalf("Failed to listen to udp socket: %s", err)
+		log.Printf("[Error] Failed to listen to udp socket: %s", err)
 	}
 	n, err := udpConn.WriteToUDP([]byte("{}"), rnet.RefugeDiscovery)
 	if n == 0 || err != nil {
-		log.Fatalf("Bytes: %d, Err: %s", n, err)
+		log.Printf("[Error] Failed to write to UDP! Bytes: %d, Err: %s", n, err)
 	}
 }
 
