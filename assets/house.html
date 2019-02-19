@@ -320,8 +320,8 @@
               } else if (device.msg.Thermostat.State == 1) {
                   icon = document.getElementById("cooling").cloneNode(true);
                   icon.id = ""
-                  var x = atBR.width/2-50;
-                  var y = atBR.height/2-60;
+                  var x = atBR.width/3-40;
+                  var y = atBR.height/3-40;
                   icon.setAttribute("stroke", "blue");
                   icon.setAttribute("fill", "blue");
                   icon.setAttribute("transform","translate("+x+","+y+") scale(2)");
@@ -329,8 +329,8 @@
               } else if (device.msg.Thermostat.State == 3) {
                   icon = document.getElementById("heating").cloneNode(true);
                   icon.id = ""
-                  var x = atBR.width/2-80;
-                  var y = atBR.height/2-70;
+                  var x = atBR.width/3-50;
+                  var y = atBR.height/3-50;
                   icon.setAttribute("stroke", "red");
                   icon.setAttribute("fill", "red");
                   icon.setAttribute("transform","translate("+x+","+y+") scale(1.2)");
