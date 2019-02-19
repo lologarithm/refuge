@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
@@ -25,8 +26,8 @@ func myUDPConn() *net.UDPConn {
 	return direct
 }
 
-func runNetwork(name string, sensorStream chan rnet.PortalState) chan rnet.PortalState {
-	stream := make(chan rnet.PortalState, 1) // output stream
+func runNetwork(name string, sensorStream chan refuge.PortalState) chan refuge.PortalState {
+	stream := make(chan refuge.PortalState, 1) // output stream
 
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
@@ -40,7 +41,7 @@ func runNetwork(name string, sensorStream chan rnet.PortalState) chan rnet.Porta
 	broadDec := json.NewDecoder(broadcasts)
 
 	mut := &sync.Mutex{}
-	state := &rnet.Msg{Portal: &rnet.Portal{Name: name, Addr: direct.LocalAddr().String()}}
+	state := &rnet.Msg{Device: &refuge.Device{Portal: &refuge.Portal{}, Name: name, Addr: direct.LocalAddr().String()}}
 	msg, _ := json.Marshal(state)
 	log.Printf("Broadcasting %s to %s", string(msg), rnet.RefugeMessages.String())
 	// Broadcast we are online!
@@ -78,14 +79,14 @@ func runNetwork(name string, sensorStream chan rnet.PortalState) chan rnet.Porta
 	// Request listener goroutine
 	go func() {
 		for {
-			v := &rnet.Portal{}
+			v := &refuge.Portal{}
 			err := dec.Decode(&v)
 			if err != nil {
 				log.Printf("Failed to decode fireplace setting: %s", err)
 				continue
 			}
 			log.Printf("Setting door to: %#v", v)
-			stream <- rnet.PortalState(v.State)
+			stream <- refuge.PortalState(v.State)
 		}
 	}()
 	return stream

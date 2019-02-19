@@ -147,7 +147,7 @@ func ControlLoop(controller Controller, setStream chan Settings, thermStream cha
 }
 
 // Control accepts current state and decides what to change
-func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.ThermalReading) {
+func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.ThermalReading) float32 {
 	fmt.Printf("Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
 	tempOffset := float32(0)
 
@@ -159,10 +159,14 @@ func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.
 	if state == StateHeating || state == StateCooling {
 		tempOffset -= 1.5 // We want to go a little over the temp we are targetting.
 	}
-	if tr.Temp > s.High+tempOffset && state != StateCooling {
-		fmt.Printf("Climate Loop: Activating cooling...\n")
-		controller.Cool()
-		return
+	if tr.Temp > s.High+tempOffset {
+		if state != StateCooling {
+			fmt.Printf("Climate Loop: Activating cooling...\n")
+			controller.Cool()
+		} else {
+			fmt.Printf("Climate Loop: Still cooling...\n")
+		}
+		return s.High + tempOffset
 	} else if tr.Temp < s.Low-tempOffset {
 		if state != StateHeating {
 			fmt.Printf("Climate Loop: Activating heating...\n")
@@ -170,11 +174,12 @@ func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.
 		} else {
 			fmt.Printf("Climate Loop: still heating...\n")
 		}
-		return
-	} else if state == StateIdle {
-		return
+		return s.Low - tempOffset
+	} else if state != StateIdle {
+		// First time after reaching goal temp, disable climate control
+		fmt.Printf("Climate Loop: Disabling all climate controls...\n")
+		controller.Off()
 	}
 
-	fmt.Printf("Climate Loop: Disabling all climate controls...\n")
-	controller.Off()
+	return 0
 }

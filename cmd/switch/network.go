@@ -6,6 +6,7 @@ import (
 	"net"
 	"sync"
 
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
@@ -40,7 +41,7 @@ func runNetwork(name string) chan bool {
 	broadDec := json.NewDecoder(broadcasts)
 
 	mut := &sync.Mutex{}
-	state := &rnet.Msg{Switch: &rnet.Switch{Name: name, Addr: direct.LocalAddr().String()}}
+	state := &rnet.Msg{Device: &refuge.Device{Name: name, Addr: direct.LocalAddr().String(), Switch: &refuge.Switch{}}}
 	msg, _ := json.Marshal(state)
 	log.Printf("Broadcasting %s to %s", string(msg), rnet.RefugeMessages.String())
 	// Broadcast we are online!
@@ -60,7 +61,7 @@ func runNetwork(name string) chan bool {
 
 	go func() {
 		for {
-			v := &rnet.Switch{}
+			v := &refuge.Switch{}
 			err := dec.Decode(&v)
 			if err != nil {
 				log.Printf("Failed to decode fireplace setting: %s", err)

@@ -6,6 +6,8 @@ import (
 	"net"
 	"time"
 
+	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
@@ -15,23 +17,42 @@ func fakeMonitor() chan rnet.Msg {
 		i := 0
 		for {
 			tstream <- rnet.Msg{
-				Thermostat: &rnet.Thermostat{Name: "Test Living Room", Temp: 17 + (float32(i % 3)), Humidity: 10.1, High: 30, Low: 18},
+				Device: &refuge.Device{
+					Name:        "Test Living Room",
+					Thermostat:  &refuge.Thermostat{Target: 23.5, State: climate.StateCooling, Settings: climate.Settings{High: 25, Low: 18}},
+					Thermometer: &refuge.Thermometer{Temp: 25 + (float32(i % 3)), Humidity: 10.1},
+				},
+			}
+			time.Sleep(3 * time.Second)
+			dev := &refuge.Device{
+				Name:        "Test Family Room",
+				Thermostat:  &refuge.Thermostat{Settings: climate.Settings{High: 30, Low: 20}},
+				Thermometer: &refuge.Thermometer{Temp: 17 + (float32(i % 3)), Humidity: 10.1},
+			}
+			if dev.Thermometer.Temp < dev.Thermostat.Settings.Low {
+				dev.Thermostat.State = climate.StateHeating
+				dev.Thermostat.Target = 21.5
+			}
+			tstream <- rnet.Msg{
+				Device: dev,
 			}
 			time.Sleep(3 * time.Second)
 			tstream <- rnet.Msg{
-				Thermostat: &rnet.Thermostat{Name: "Test Family Room", Temp: 17 + (float32(i % 3)), Humidity: 10.1, High: 30, Low: 18},
+				Device: &refuge.Device{
+					Name:   "Test Fireplace",
+					Switch: &refuge.Switch{On: i%2 == 0},
+				},
 			}
 			time.Sleep(3 * time.Second)
 			tstream <- rnet.Msg{
-				Switch: &rnet.Switch{Name: "Test Fireplace", On: i%2 == 0},
+				Device: &refuge.Device{
+					Name: "Test Garage Door",
+					Portal: &refuge.Portal{
+						State: refuge.PortalState(i%2 + 1),
+					},
+				},
 			}
 			time.Sleep(3 * time.Second)
-			if i == 0 {
-				tstream <- rnet.Msg{
-					Portal: &rnet.Portal{Name: "Test Garage Door", State: rnet.PortalState(i % 3)},
-				}
-				time.Sleep(3 * time.Second)
-			}
 			i++
 		}
 	}()
@@ -96,8 +117,8 @@ func ping() {
 	}
 }
 
-type PortalState struct {
-	rnet.Portal
+type DeviceState struct {
+	refuge.Device
 	lastUpdate time.Time
 	lastOpened time.Time
 	lastEmail  time.Time
@@ -106,31 +127,36 @@ type PortalState struct {
 
 const alertTime = time.Minute * 30
 
-func portalAlert(c *Config, portalUpdates chan rnet.Portal) {
+func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 	// Portal watcher
-	portals := map[string]*PortalState{}
+	devices := map[string]*DeviceState{}
 	for {
 		select {
-		case up := <-portalUpdates:
-			existing, ok := portals[up.Name]
+		case up := <-deviceUpdates:
+			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &PortalState{}
-				portals[up.Name] = existing
+				existing = &DeviceState{}
+				devices[up.Name] = existing
 			}
-			if existing.State != rnet.PortalStateOpen && up.State == rnet.PortalStateOpen {
+			port := existing.Portal
+			// For now only do alerts on portals
+			if port == nil {
+				continue
+			}
+			if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
 				// If just opened, set the time.
 				existing.lastOpened = time.Now()
-			} else if up.State != rnet.PortalStateOpen {
+			} else if up.Portal.State != refuge.PortalStateOpen {
 				// if not open now, keep updating.
 				existing.lastOpened = time.Now()
 			}
-			existing.Portal = up
+			existing.Portal = up.Portal
 			existing.lastUpdate = time.Now()
 		case <-time.After(time.Minute * 5):
 			ping()
 		}
 
-		for _, p := range portals {
+		for _, p := range devices {
 			upDiff := time.Now().Sub(p.lastUpdate)
 			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)

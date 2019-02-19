@@ -5,7 +5,7 @@ import (
 	"net"
 	"strings"
 
-	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/refuge"
 )
 
 // RefugeMessages is the multicast address used by devices to communicate to web server.
@@ -24,58 +24,9 @@ func init() {
 	failErr("resolving refuge udp addr", err)
 }
 
-// Portal represents any door/window that can be monitored or open/closed
-type Portal struct {
-	Name string
-	Addr string
-
-	State PortalState // Can signal current state or intended state. Unknown, Closed, Open
-}
-
-// PortalState is the state of the portal (open/closed)
-type PortalState uint64
-
-// Enum of portal states
-const (
-	PortalStateUnknown PortalState = iota
-	PortalStateClosed
-	PortalStateOpen
-)
-
-// Thermostat is a very specific device -- a thermostat
-// Includes current reading as well as temp targets
-type Thermostat struct {
-	Name string // Name of thermostat
-	Addr string // Address of thermostat
-
-	State climate.ControlState
-
-	// Settings
-	High float32 // Temp Max
-	Low  float32 // Temp Minimum
-	Fan  uint8   // If Fan is unset, off, on, or auto
-
-	// Readings
-	Temp     float32 // Last temp reading
-	Humidity float32 // Last humidity reading
-	Motion   int64   // Last motion event
-}
-
-// Switch represents any devices that can be switched on/off
-// Examples: Lights, Gas Fireplace, etc
-type Switch struct {
-	Name string // Name of fireplace
-	Addr string // Address of fireplace
-	On   bool
-}
-
 // Msg is what is sent over the broadcast network
-// TODO: make this a device message and put name on just the main struct
-// then any device can send any readings it wants. (sensors, etc)
 type Msg struct {
-	Switch     *Switch
-	Thermostat *Thermostat
-	Portal     *Portal
+	*refuge.Device // The device this message is about
 }
 
 // Ping is a request for discovery of devices

@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
@@ -26,82 +28,80 @@ const (
 )
 
 type server struct {
-	datalock    *sync.Mutex
-	Thermostats map[string]rnet.Thermostat
-	Switches    map[string]rnet.Switch
-	Portals     map[string]rnet.Portal
+	datalock *sync.Mutex
+	Devices  map[string]*refugeDevice
 
 	clientslock   *sync.Mutex
 	clientStreams []*websocket.Conn
 }
 
-func (srv *server) getPortal(name string) (port rnet.Portal) {
+// Getter functions convert names to device keys (avoiding spaces)
+
+func (srv *server) getDevice(name string) (device *refugeDevice) {
 	name = strings.Replace(name, " ", "", -1)
 	srv.datalock.Lock()
-	port = srv.Portals[name]
+	device = srv.Devices[name]
 	srv.datalock.Unlock()
-	return port
+	return device
 }
 
-func (srv *server) getSwitch(name string) (sw rnet.Switch) {
-	name = strings.Replace(name, " ", "", -1)
-	srv.datalock.Lock()
-	sw = srv.Switches[name]
-	srv.datalock.Unlock()
-	return sw
+type refugeDevice struct {
+	device refuge.Device
+	conn   *net.UDPConn
+	pos    Position
 }
 
-func (srv *server) getThermo(name string) (thermo rnet.Thermostat) {
-	name = strings.Replace(name, " ", "", -1)
-	srv.datalock.Lock()
-	thermo = srv.Thermostats[name]
-	srv.datalock.Unlock()
-	return thermo
-}
-
-// serve creates the state object and http handlers and launches the http server.
-// blocks on the http server.
+// serve creates the state object "server" and http handlers and launches the http listener.
+// Blocks on the http listener.
 func serve(host string, deviceStream chan rnet.Msg) {
 	// localTime := time.Location{}
 	srv := &server{
 		datalock:    &sync.Mutex{},
-		Thermostats: make(map[string]rnet.Thermostat, 3),
-		Switches:    map[string]rnet.Switch{},
-		Portals:     map[string]rnet.Portal{},
+		Devices:     map[string]*refugeDevice{},
 		clientslock: &sync.Mutex{},
 	}
 
-	portalUpdates := make(chan rnet.Portal, 5)
-	go portalAlert(&globalConfig, portalUpdates)
+	deviceUpdates := make(chan refuge.Device, 5)
+	go portalAlert(&globalConfig, deviceUpdates)
 
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
 	go func() {
 		for {
 			msg := <-deviceStream
-			switch {
-			case msg.Thermostat != nil:
-				td := msg.Thermostat
-				// Update our cached thermostat
-				srv.datalock.Lock()
-				srv.Thermostats[strings.Replace(td.Name, " ", "", -1)] = *td
-				srv.datalock.Unlock()
-			case msg.Switch != nil:
-				fd := msg.Switch
-				// Update our cached thermostats
-				srv.datalock.Lock()
-				srv.Switches[strings.Replace(fd.Name, " ", "", -1)] = *fd
-				srv.datalock.Unlock()
-			case msg.Portal != nil:
-				p := msg.Portal
-				// Update our cached thermostats
-				srv.datalock.Lock()
-				srv.Portals[strings.Replace(p.Name, " ", "", -1)] = *p
-				srv.datalock.Unlock()
-				portalUpdates <- *p // push updates to portal alert system
+			td := msg.Device
+			existing := srv.getDevice(td.Name)
+			new := &refugeDevice{
+				device: *td,
 			}
+			if existing != nil {
+				new.pos = existing.pos
+				if existing.device.Addr != td.Addr {
+					raddr, err := net.ResolveUDPAddr("udp", td.Addr)
+					if err != nil {
+						log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+					}
+					conn, err := net.DialUDP("udp", nil, raddr)
+					if err != nil {
+						log.Printf("Failed to open UDP: %s", err)
+						continue
+					}
+					new.conn = conn
+				} else {
+					new.conn = existing.conn
+				}
+			}
+			// Update our cached thermostat
+			srv.datalock.Lock()
+			srv.Devices[strings.Replace(td.Name, " ", "", -1)] = new
+			srv.datalock.Unlock()
+			deviceUpdates <- *td // push updates to alert system
 
+			up := &DeviceUpdate{
+				Device: &new.device,
+				Pos:    new.pos,
+			}
 			// Serialize for clients
-			d, err := json.Marshal(msg)
+			d, err := json.Marshal(up)
 			if err != nil {
 				log.Printf("Failed to marshal thermal data to json: %s", err)
 			}
