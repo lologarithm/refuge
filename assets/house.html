@@ -2,12 +2,28 @@
   <head>
     <style> svg {position: absolute;}</style>
     <style>
+      body {
+        overscroll-behavior: contain;
+      }
       svg text {
         -webkit-user-select: none;
            -moz-user-select: none;
             -ms-user-select: none;
                 user-select: none;
                 font-size: 25px;
+      }
+      .thermo {
+        overscroll-behavior: contain;
+        touch-action: none;
+      }
+      .thermo g {
+        touch-action: none;
+      }
+      .thermo path {
+        touch-action: none;
+      }
+      .thermo text {
+        touch-action: none;
       }
       .room rect {
         stroke: black;
@@ -22,6 +38,7 @@
       <p style="font-size:3em;margin:0">Refuge Home Automation</p>
       <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
       <p><a id="edittoggle" href="#">Edit Mode</a></p>
+      <p id="debugger"></p>
     </div>
     <div id="interaction">
     <!--  Floor 1-->
@@ -156,10 +173,10 @@
         <text fill="black" stroke="white" style="font: normal 36px sans-serif;" x=-2 y=32 class="temp">70</text>
       </g>
       <g class="switch" id="switchTemplate"><title>unnamed</title>
-        <rect height=50 width=50 style="stroke:black;fill:white"></rect>
-        <path style="display:none" transform="scale(0.037) translate(100, 100)" fill="url('#fire')" style="" d="M310.591 1200C64.731 1061.434 0 930.279 37.008 751.149c27.321-132.272 116.782-239.886 125.36-371.904 38.215 69.544 54.182 119.692 58.453 192.364C342.364 422.695 422.682 216.546 427.438 0c0 0 316.575 186.01 337.348 466.98 27.253-57.913 40.972-149.891 13.718-209.504 81.758 59.615 560.293 588.838-64.818 942.524 117.528-228.838 30.32-537.612-173.738-680.218 13.627 61.32-10.266 290.02-100.543 390.515 25.014-167.916-23.8-238.919-23.8-238.919s-16.754 94.055-81.758 189.067C274.488 947.206 233.358 1039.29 310.591 1200z"></path>
+        <rect height=50 width=50 stroke="black" fill="white"></rect>
+        <path transform="scale(0.037) translate(100, 100)" fill="url('#fire')" style="" d="M310.591 1200C64.731 1061.434 0 930.279 37.008 751.149c27.321-132.272 116.782-239.886 125.36-371.904 38.215 69.544 54.182 119.692 58.453 192.364C342.364 422.695 422.682 216.546 427.438 0c0 0 316.575 186.01 337.348 466.98 27.253-57.913 40.972-149.891 13.718-209.504 81.758 59.615 560.293 588.838-64.818 942.524 117.528-228.838 30.32-537.612-173.738-680.218 13.627 61.32-10.266 290.02-100.543 390.515 25.014-167.916-23.8-238.919-23.8-238.919s-16.754 94.055-81.758 189.067C274.488 947.206 233.358 1039.29 310.591 1200z"></path>
       </g>
-      <g class="portal" id="portalTemplate"><title>unnamed</title><rect height=50 width=50 fill="white" stroke="black"></rect><g name="garageOpen" transform="translate(5,5)" style="display: block;"><path d="M5.5 35.755V17.752l-2.25 1.75L0 14.627 19.502 0l19.503 14.627-3.25 4.876-2.25-1.75v18.002h-3.001V17.752H8.501v18.003h-3z"></path></g>
+      <g class="portal" id="portalTemplate"><title>unnamed</title><rect height=50 width=50 fill="white" stroke="black"></rect><g name="garageOpen" transform="translate(5,5)" fill="red"><path d="M5.5 35.755V17.752l-2.25 1.75L0 14.627 19.502 0l19.503 14.627-3.25 4.876-2.25-1.75v18.002h-3.001V17.752H8.501v18.003h-3z"></path></g>
         <g name="garageOpenHover" transform="translate(5,5)" style="display: none;"><path d="M5.5 35.755V17.752l-2.25 1.75L0 14.627 19.502 0l19.503 14.627-3.25 4.876-2.25-1.75v18.002h-3.001V17.752H8.501v18.003h-3zm14.003-2.752l-6.25-6.25h3.25v-7h6v7h3.25l-6.25 6.25z"></path></g>
         <g name="garageClosed" transform="translate(5,5)" style="display: none;"><path d="M5.5 35.755V17.752l-2.25 1.75L0 14.627 19.502 0l19.503 14.627-3.25 4.876-2.25-1.75v18.002h-3.001V17.752H8.501v18.003h-3zm23.004-12.002H10.501v-4h18.003v4zm0 6.001H10.501v-4h18.003v4zm0 6H10.501v-4h18.003v4z"></path></g>
         <g name="garageClosedHover" transform="translate(5,5)" style="display: none;"><path d="M5.5 35.755V17.752l-2.25 1.75L0 14.627 19.502 0l19.503 14.627-3.25 4.876-2.25-1.75v18.002h-3.001V17.752H8.501v18.003h-3zm14.002-12.25l6.25 6.25h-3.25v6h-6v-6h-3.25l6.25-6.25zm-9.001.248v-4h19.003v4h-7.001l-3-3-3.001 3h-6.001zm0 12.002v-4h4v4h-4zm19.003-4v4h-5.001v-4h5zm0-2.001h-2l-3.001-4h5v4zm-19.003 0v-4h4l-3 4h-1z"></path></g>
@@ -184,6 +201,7 @@
       // console.log("SVG Point:", svgp);
     });
     var header = document.getElementById("header");
+    // Handle window resizing -- allow changing between portrait and landscape.
     var doSize = function() {
       var headerHeight = header.getBoundingClientRect().height;
       if (window.innerWidth < window.innerHeight) {
@@ -289,16 +307,20 @@
         thermoControl.style.display = "none";
         thermoControl.style.position = "absolute";
 
-        device = {};
+        device = {
+          touching: false,
+          attached: null,
+          name: msg.Name,
+          msg: msg,
+        };
         device.msg = msg;
         devices[id] = device;
-
         if (msg.Pos.RoomID != "") {
           // Attach it to the floor instead of the room.
           var attached = document.getElementById(msg.Pos.RoomID);
           device.attached = attached;
           attached.parentElement.parentElement.appendChild(itemEle);
-          itemEle.setAttribute("transform", "translate(" + msg.Pos.X +","+ msg.Pos.Y+")");
+          itemEle.setAttribute("transform", "translate(" + msg.Pos.X +","+ msg.Pos.Y+") scale(1.25)");
           var atBR = attached.getBoundingClientRect();
           var icon = null;
           var fadeStep = 0;
@@ -344,6 +366,7 @@
               icon.remove();
               icon = null;
             }
+            drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
             // If we have no heating/cooling check again in 1 second.
             window.setTimeout(draw, 1000);
           }
@@ -352,10 +375,8 @@
           maincanvas.appendChild(itemEle);
         }
 
-        device.name = msg.Name;
         device.itemEle = itemEle;
         device.thermoControl = thermoControl;
-        device.msg = msg;
         var contVis = false;
 
         device.itemEle.childNodes[7].addEventListener("click", function(e) {
@@ -363,7 +384,6 @@
             return;
           }
           if (contVis) {
-            device.itemEle.style.backgroundColor = "transparent";
             device.thermoControl.style.display = "none";
             contVis = false;
           } else {
@@ -378,7 +398,9 @@
 
       device.msg = msg;
       var target = msg.Thermostat.Target;
-      drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
+      if (!device.touching) {
+        drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
+      }
 
       var temp = msg.Thermometer.Temp;
       if (units == "F") {
@@ -397,7 +419,6 @@
         var itemEle = document.getElementById("portalTemplate").cloneNode(true);
 
         itemEle.id = id;
-        itemEle.style.display = "block";
         itemEle.childNodes[0].textContent = msg.Name;
         maincanvas.appendChild(itemEle);
 
@@ -405,7 +426,7 @@
         if (msg.Pos.RoomID != "") {
           var attached = document.getElementById(msg.Pos.RoomID);
           device.attached = attached;
-          itemEle.setAttribute("transform", "translate(" + msg.Pos.X + "," + msg.Pos.Y + ")")
+          itemEle.setAttribute("transform", "translate(" + msg.Pos.X + "," + msg.Pos.Y + ") scale(1.25)")
           attached.parentElement.parentElement.appendChild(itemEle);
         }
         device.itemEle = itemEle;
@@ -463,7 +484,6 @@
         console.log("Couldn't find existing icon for device " + msg.Name + "... Constructing now: ", id, msg);
         var itemEle = document.getElementById("switchTemplate").cloneNode(true);
         itemEle.id = id;
-        itemEle.style.display = "block";
         itemEle.childNodes[0].textContent = msg.Name;
         device = {};
         devices[id] = device;
@@ -491,9 +511,9 @@
       }
       device.msg = msg;
       if (msg.Switch.On) {
-        device.itemEle.childNodes[4].style.display = "block";
+        device.itemEle.childNodes[4].setAttribute("fill", "url('#fire')");
       } else {
-        device.itemEle.childNodes[4].style.display = "none";
+        device.itemEle.childNodes[4].setAttribute("fill", "black");
       }
     }
 
@@ -527,10 +547,12 @@
       animateAngle(0);
     }
 
+    window.addEventListener("touchmove", function(e){
+      // console.log("Window touchmove?", e);
+    });
     function thermoInteraction(device) {
       // Setup thermostat control UI
       var grabbing = 0;
-      var touching = 0;
       var angle = 0;
       // var spread = device.msg.Thermostat.Settings.High - device.msg.Thermostat.Settings.Low;
       var spread = 10;
@@ -538,30 +560,25 @@
       var ibr = device.itemEle.getBoundingClientRect();
       var isp = svgPoint(maincanvas, ibr.x, ibr.y);
       var center = {x: isp.x+40, y: isp.y+60};
-      console.log("Center:", center);
 
-      var handleMove = function(x, y, x2, y2) {
+      var touches = [];
+      var touchRange = 0;
+
+      var getTouch = function(id) {
+        for (var j = 0; j < touches.length; j++) {
+          if (touches[j].t.identifier == id) {
+            return touches[j];
+          }
+        }
+        return null;
+      }
+      var handleMove = function(x, y) {
         var nangle = calcAngle(x,y);
         var adiff = angle - nangle;
         var frac = adiff / Math.PI;
-        var h, l, m;
-
-        if (x2 != undefined) {
-          var nat = calcAngle(x2, y2);
-          var nadt = angle - nat;
-          var fract = nadt / Math.PI;
-          if (frac > fract) {
-            var a = fract;
-            fract = frac;
-            frac = a;
-          }
-          l = device.msg.Thermostat.Settings.Low + (frac*30);
-          h = device.msg.Thermostat.Settings.High + (fract*30);
-        } else {
-          m = mid + (frac*30);
-          l = m - spread/2;
-          h = m + spread/2;
-        }
+        var m = mid + (frac*30);
+        var l = m - spread/2;
+        var h = m + spread/2;
         if (m < 15 || m > 35) {
           return;
         }
@@ -584,7 +601,7 @@
         grabbing = 1;
         angle = calcAngle(e.clientX, e.clientY)
         e.preventDefault();
-      })
+      }, {passive: false})
       window.addEventListener("mousemove", function(e) {
         if (grabbing == 0) {
           return;
@@ -592,6 +609,7 @@
         handleMove(e.clientX, e.clientY);
         e.preventDefault();
       })
+      var dbgr = document.getElementById("debugger");
       window.addEventListener("mouseup", function(e){
         if (grabbing == 0) {
           return;
@@ -613,35 +631,88 @@
         ws.send(msg);
         console.log("sent: ", msg);
         e.preventDefault();
-      })
+      }, {passive: false})
       device.thermoControl.addEventListener("touchstart", function(e){
-        if (e.touches.length == 1 || e.touches.length == 2) {
-          angle = calcAngle(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-          grabbing = 1;
+        device.touching = true;
+        console.log("TouchStart:", e);
+        for (var i = 0; i < e.changedTouches.length; i++) {
+            touches.push({
+              t: copyTouch(e.changedTouches[i]),
+              a: calcAngle(e.changedTouches[i].clientX, e.changedTouches[i].clientY)
+            });
+        }
+        if (touches.length == 1) {
+          angle = calcAngle(touches[0].t.clientX, touches[0].t.clientY);
+          dbgr.innerText = "one touch: " + angle;
           if (e.cancelable) {
             e.preventDefault();
           }
         }
-      })
+        if (touches.length == 2) {
+          var a = touches[0].t.clientX-touches[1].t.clientX;
+          var b = touches[0].t.clientY-touches[1].t.clientY;
+          touchRange = a*a + b*b;
+          dbgr.innerText = "two touch, d:"+touchRange;
+          if (e.cancelable) {
+            e.preventDefault();
+          }
+        }
+      }, {passive: false})
       device.thermoControl.addEventListener("touchend", function(e){
-        grabbing = 0;
-      })
+        console.log("touchend:", e)
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          var cht = e.changedTouches[i];
+          touches = touches.filter(function(v){
+            if (v.t.identifier == cht.identifier) {
+              if (e.cancelable) {
+                e.preventDefault();
+              }
+              return false;
+            }
+            return true;
+          })
+        }
+        device.touching = touches.length > 0;
+        console.log("device.touching: " + device.touching);
+      }, {passive: false})
       device.thermoControl.addEventListener("touchmove", function(e){
-        if (grabbing == 0) {
+        // console.log("TouchMove: ", touches);
+        if (touches.length == 0) {
           return;
         }
-        if (e.touches.length == 1) {
-          handleMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-          if (e.cancelable) {
-             e.preventDefault();
-          }
-        } else if (e.touches.length == 2) {
-          handleMove(e.changedTouches[0].clientX, e.changedTouches[0].clientY, e.changedTouches[1].clientX, e.changedTouches[1].clientY);
-          if (e.cancelable) {
-             e.preventDefault();
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          var chTch = e.changedTouches[i];
+          var touch = getTouch(chTch.identifier);
+          if (touch != null) {
+            touch.t = copyTouch(chTch);
+            if (e.cancelable) {
+              e.preventDefault();
+            }
           }
         }
-      })
+        if (touches.length == 1) {
+          handleMove(touches[0].t.clientX, touches[0].t.clientY);
+        } else if (touches.length == 2) {
+          var a = touches[0].t.clientX-touches[1].t.clientX;
+          var b = touches[0].t.clientY-touches[1].t.clientY;
+          var newTouchRange = a*a + b*b;
+          var ratio  = newTouchRange / touchRange;
+          spread = 10*(ratio/2);
+          if (spread > 15) {
+            spread = 15;
+          } else if (spread < 5) {
+            spread = 5;
+          }
+          dbgr.innerText = "two touch, d:"+touchRange+ "," + newTouchRange + " -- New Spread: " + spread;
+
+          var l = mid - spread/2;
+          var h = mid + spread/2;
+          drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp);
+        }
+      }, {passive: false})
+      device.thermoControl.addEventListener("touchcancel", function(e){
+        console.log("Cancelled:", e.changedTouches);
+      });
     }
 
     function getRoomPos(left, top) {
@@ -654,8 +725,10 @@
           }
           for (var ci = 0; ci < p.classList.length; ci++) {
             if (p.classList[ci] == "room") {
-              var svgp = svgPoint(p.parentElement.parentElement, left, top);
-              return {id: p.id, x: Math.floor(svgp.x), y: Math.floor(svgp.y)}
+              var pbr = p.parentElement.parentElement.getBoundingClientRect();
+              var pp = svgPoint(maincanvas, pbr.x, pbr.y);
+              var mp = svgPoint(maincanvas, left, top);
+              return {id: p.id, x: Math.floor(mp.x-pp.x), y: Math.floor(mp.y-pp.y)};
             }
           }
         }
@@ -686,49 +759,9 @@
         var svgp = svgPoint(maincanvas, x, y);
         left = svgp.x-offx;
         top = svgp.y-offy;
-        device.itemEle.setAttribute("transform", "translate(" + left + "," + top + ")")
-      }
-      device.itemEle.addEventListener("mousedown", function(e){
-        console.log("MouseDown!")
-        if (touching || !editing) {
-          return;
-        }
-        mousedown = 1;
-        var brect = device.itemEle.getBoundingClientRect();
-        var srect = svgPoint(maincanvas, brect.x, brect.y);
-        var off = svgPoint(maincanvas, e.clientX, e.clientY);
-        console.log("mousedown, off, brect", off, brect, srect);
-        offx = off.x-srect.x;
-        offy = off.y-srect.y;
-        maincanvas.appendChild(device.itemEle);
-        device.itemEle.setAttribute("transform", "translate(" + srect.x + "," + srect.y + ")")
+        device.itemEle.setAttribute("transform", "translate(" + left + "," + top + ") scale(1.25)")
 
-        e.preventDefault();
-      });
-      window.addEventListener("mouseup", function(e){
-        if (touching || !editing) {
-          return;
-        }
-        if (mousedown > 0) {
-          var roomPos = getRoomPos(e.clientX, e.clientY);
-          if (roomPos != null) {
-            // TODO: re-attach to correct floor.
-            var msg = JSON.stringify({Name: device.name, Pos: {RoomID: roomPos.id, X: roomPos.x, Y: roomPos.y }});
-            ws.send(msg);
-            console.log("sent: ", msg);
-          }
-        }
-        mousedown = 0;
-      });
-      window.addEventListener("mousemove", function(e){
-        if (!editing || mousedown == 0 || touching) {
-          return;
-        }
-        // console.log("Mouse move:", e);
-        // var off = svgPoint(device.itemEle, e.clientX, e.clientY);
-        moveControl(e.clientX, e.clientY);
-
-        var roomPos = getRoomPos(e.clientX, e.clientY);
+        var roomPos = getRoomPos(x, y);
         if (roomPos != null) {
           if (highlighted == null || roomPos.id != highlighted.id) {
             if (highlighted != null) {
@@ -747,6 +780,43 @@
             highlighted = null;
           }
         }
+      }
+      device.itemEle.addEventListener("mousedown", function(e){
+        if (touching || !editing) {
+          return;
+        }
+        mousedown = 1;
+        var brect = device.itemEle.getBoundingClientRect();
+        var srect = svgPoint(maincanvas, brect.x, brect.y);
+        var off = svgPoint(maincanvas, e.clientX, e.clientY);
+        console.log("mousedown, off, brect", off, brect, srect);
+        offx = off.x-srect.x;
+        offy = off.y-srect.y;
+        maincanvas.appendChild(device.itemEle);
+        device.itemEle.setAttribute("transform", "translate(" + srect.x + "," + srect.y + ")");
+        e.preventDefault();
+      });
+      window.addEventListener("mouseup", function(e){
+        if (touching || !editing || mousedown == 0) {
+          return;
+        }
+        var roomPos = getRoomPos(e.clientX, e.clientY);
+        if (roomPos != null) {
+          // TODO: re-attach to correct floor.
+          var msg = JSON.stringify({Name: device.name, Pos: {RoomID: roomPos.id, X: roomPos.x, Y: roomPos.y }});
+          ws.send(msg);
+          console.log("sent: ", msg);
+        }
+        mousedown = 0;
+      });
+      window.addEventListener("mousemove", function(e){
+        if (!editing || mousedown == 0 || touching) {
+          return;
+        }
+        // console.log("Mouse move:", e);
+        // var off = svgPoint(device.itemEle, e.clientX, e.clientY);
+        moveControl(e.clientX, e.clientY);
+
         e.preventDefault();
       });
 
@@ -755,15 +825,26 @@
           return;
         }
         touching = true;
-        var br = device.itemEle.getClientRects()[0];
-        left = br.left + window.scrollX;
-        top = br.top + window.scrollY;
-        offx = left - e.touches[0].clientX;
-        offy = top - e.touches[0].clientY;
+
+        var brect = device.itemEle.getBoundingClientRect();
+        var srect = svgPoint(maincanvas, brect.x, brect.y);
+        var off = svgPoint(maincanvas, e.touches[0].clientX, e.touches[0].clientY);
+        console.log("mousedown, off, brect", off, brect, srect);
+        offx = off.x-srect.x;
+        offy = off.y-srect.y;
+        maincanvas.appendChild(device.itemEle);
+        device.itemEle.setAttribute("transform", "translate(" + srect.x + "," + srect.y + ")")
       }, false);
       device.itemEle.addEventListener("touchend", function(e) {
-        if (!editing) {
+        if (!editing || !touching) {
           return;
+        }
+        var roomPos = getRoomPos(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        if (roomPos != null) {
+          // TODO: re-attach to correct floor.
+          var msg = JSON.stringify({Name: device.name, Pos: {RoomID: roomPos.id, X: roomPos.x, Y: roomPos.y }});
+          ws.send(msg);
+          console.log("sent: ", msg);
         }
         touching = false;
       }, false);
@@ -772,7 +853,7 @@
         if (!editing || !touching) {
           return;
         }
-        moveControl(e.touches[0].clientX, e.touches[0].clientY);
+        moveControl(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         e.preventDefault();
       }, false);
     }
@@ -838,6 +919,10 @@
 
     function convertToC(v) {
       return (v-32) / 1.8;
+    }
+
+    function copyTouch(touch) {
+      return { identifier: touch.identifier, clientX: touch.clientX, clientY: touch.clientY };
     }
   </script>
 </html>
