@@ -620,7 +620,7 @@
         handleMove(e.clientX, e.clientY);
         e.preventDefault();
       })
-      var dbgr = document.getElementById("debugger");
+      // var dbgr = document.getElementById("debugger");
       window.addEventListener("mouseup", function(e){
         if (grabbing == 0) {
           return;
@@ -649,7 +649,6 @@
         }
         if (touches.length == 1) {
           angle = calcAngle(touches[0].t.clientX, touches[0].t.clientY);
-          dbgr.innerText = "one touch: " + angle;
           if (e.cancelable) {
             e.preventDefault();
           }
@@ -658,7 +657,6 @@
           var a = touches[0].t.clientX-touches[1].t.clientX;
           var b = touches[0].t.clientY-touches[1].t.clientY;
           touchRange = a*a + b*b;
-          dbgr.innerText = "two touch, d:"+touchRange;
           if (e.cancelable) {
             e.preventDefault();
           }
@@ -721,8 +719,6 @@
           } else if (spread < 5) {
             spread = 5;
           }
-          dbgr.innerText = "two touch, d:"+touchRange+ "," + newTouchRange + " -- New Spread: " + spread;
-
           var l = mid - spread/2;
           var h = mid + spread/2;
           drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp);
