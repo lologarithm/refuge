@@ -83,6 +83,10 @@ func monitor(test bool) chan rnet.Msg {
 				log.Printf("Failed to decode json msg: %s", err)
 				continue
 			}
+			if reading.Device == nil {
+				log.Printf("Device is nil")
+				continue
+			}
 			switch {
 			case reading.Thermostat != nil:
 				log.Printf("New reading: %#v", reading.Thermostat)

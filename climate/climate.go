@@ -100,10 +100,11 @@ func (rc RealController) State() ControlState {
 type FakeController struct {
 }
 
-func (fc FakeController) Heat() {}
-func (fc FakeController) Cool() {}
-func (fc FakeController) Fan()  {}
-func (fc FakeController) Off()  {}
+func (fc FakeController) Heat()               {}
+func (fc FakeController) Cool()               {}
+func (fc FakeController) Fan()                {}
+func (fc FakeController) Off()                {}
+func (fc FakeController) State() ControlState { return 0 }
 
 type ControlState byte
 

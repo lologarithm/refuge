@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -70,13 +72,15 @@ func clientStream(w http.ResponseWriter, r *http.Request, access int, srv *serve
 				log.Println("Disconnecting user: ", err)
 				break
 			}
+			log.Printf("Got client Request: %#v", v)
 			// Readers can't write new settings
 			if access != AccessWrite {
 				continue
 			}
 			dev := srv.getDevice(v.Name)
 			if v.Pos != nil {
-				log.Printf("Got request to change device position: %#v", v)
+				d, _ := json.Marshal(v.Pos)
+				ioutil.WriteFile("./pos/"+dev.device.Name+".pos", d, 0644)
 				dev.pos = *v.Pos
 			} else if v.Climate != nil {
 				setTherm(*v.Climate, dev.conn)

@@ -312,6 +312,7 @@
           attached: null,
           name: msg.Name,
           msg: msg,
+          thermoControl: thermoControl
         };
         device.msg = msg;
         devices[id] = device;
@@ -437,10 +438,10 @@
         addEditorControls(device);
         itemEle.addEventListener("click", function(){
           var state = 1;
-          if (device.msg.Portal.State != 1) {
+          if (device.msg.Portal.State == 1) {
             state = 2;
           }
-          var msg = JSON.stringify({Name: name, Portal: {State: state}})
+          var msg = JSON.stringify({Name: device.name, Toggle: state})
           ws.send(msg);
           console.log(msg);
         });
@@ -449,13 +450,15 @@
           device.itemEle.childNodes[4].style.display = "none";
           device.itemEle.childNodes[6].style.display = "none";
           device.itemEle.childNodes[8].style.display = "none";
-          if (device.msg.Portal.State == 1) {
+          if (device.msg.Portal.State != 1) {
+            // Open state
             if (device.hovered) {
               device.itemEle.childNodes[4].style.display = "block";
             } else {
               device.itemEle.childNodes[2].style.display = "block";
             }
           } else {
+            // Closed State
             if (device.hovered) {
               device.itemEle.childNodes[8].style.display = "block";
             } else {
@@ -500,11 +503,11 @@
         addEditorControls(device);
         maincanvas.appendChild(itemEle);
         itemEle.addEventListener("click", function() {
-          var on = true;
+          var on = 1;
           if (device.msg.Switch.On) {
-            on = false;
+            on = 2
           }
-          var msg = JSON.stringify({Name: name, Switch: {On: on}})
+          var msg = JSON.stringify({Name: device.name, Toggle: on})
           ws.send(msg);
           console.log(msg);
         });

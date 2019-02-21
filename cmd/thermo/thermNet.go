@@ -18,7 +18,7 @@ var comma = []byte{','}
 var colon = []byte{':'}
 
 func jsonSerThemo(dev *refuge.Device) []byte {
-	const tmpl string = `{"Device": { "Name":"%s","Addr":"%s", "Thermometer": {"Temp":%f,"Humidity":%f}, "Motion": {"Motion": %d}, "Thermostat":{"State":%d, "Target": %d, "Settings": {"Fan":%d,"Low":%f,"High":%f}}}`
+	const tmpl string = `{"Name":"%s","Addr":"%s", "Thermometer": {"Temp":%f,"Humidity":%f}, "Motion": {"Motion": %d}, "Thermostat":{"State":%d, "Target": %f, "Settings": {"Fan":%d,"Low":%f,"High":%f}}}`
 	return []byte(fmt.Sprintf(tmpl, dev.Name, dev.Addr, dev.Thermometer.Temp, dev.Thermometer.Humidity, dev.Motion.Motion, dev.Thermostat.State, dev.Thermostat.Target, dev.Thermostat.Settings.Mode, dev.Thermostat.Settings.Low, dev.Thermostat.Settings.High))
 }
 

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -88,6 +89,24 @@ func serve(host string, deviceStream chan rnet.Msg) {
 					new.conn = conn
 				} else {
 					new.conn = existing.conn
+				}
+			} else {
+				raddr, err := net.ResolveUDPAddr("udp", td.Addr)
+				if err != nil {
+					log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+				}
+				conn, err := net.DialUDP("udp", nil, raddr)
+				if err != nil {
+					log.Printf("Failed to open UDP: %s", err)
+					continue
+				}
+				new.conn = conn
+
+				fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
+				if err == nil {
+					pos := &Position{}
+					json.Unmarshal(fdata, pos)
+					new.pos = *pos
 				}
 			}
 			// Update our cached thermostat

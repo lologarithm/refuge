@@ -11,7 +11,7 @@ import (
 
 // This file holds functions to control the various IoT devices via udp messages
 func toggleSwitch(newstate int, conn *net.UDPConn) {
-	msg, err := json.Marshal(refuge.Portal{})
+	msg, err := json.Marshal(refuge.Switch{On: newstate == 1})
 	if err != nil {
 		log.Printf("[Error] Failed to write json switch update: %s", err)
 		return
@@ -20,6 +20,7 @@ func toggleSwitch(newstate int, conn *net.UDPConn) {
 		log.Printf("[Error] No Connection to device.")
 		return
 	}
+	log.Printf("Sending Switch Request: %s", string(msg))
 	conn.Write(msg)
 }
 
@@ -33,6 +34,7 @@ func togglePortal(newstate int, conn *net.UDPConn) {
 		log.Printf("[Error] No Connection to device.")
 		return
 	}
+	log.Printf("Sending Portal Request: %s", string(msg))
 	conn.Write(msg)
 }
 
