@@ -557,8 +557,7 @@
       // Setup thermostat control UI
       var grabbing = 0;
       var angle = 0;
-      // var spread = device.msg.Thermostat.Settings.High - device.msg.Thermostat.Settings.Low;
-      var spread = 10;
+      var spread = device.msg.Thermostat.Settings.High - device.msg.Thermostat.Settings.Low;
       var mid = (device.msg.Thermostat.Settings.High + device.msg.Thermostat.Settings.Low)/2;
       var ibr = device.itemEle.getBoundingClientRect();
       var isp = svgPoint(maincanvas, ibr.x, ibr.y);
@@ -600,8 +599,17 @@
         }
         return angle;
       }
+      var sendThermoUpdate = function(m) {
+        device.msg.Thermostat.Settings.Low =  m - spread/2;
+        device.msg.Thermostat.Settings.High = m + spread/2;
+        drawThermoLines(device.thermoControl, device.msg.Thermostat.Settings.High, device.msg.Thermostat.Settings.Low, device.msg.Thermometer.Temp);
+        var msg = JSON.stringify({Name: device.name, Climate: {High: m + spread/2, Low: m - spread/2}} );
+        ws.send(msg);
+        console.log("sent: ", msg);
+      }
       device.thermoControl.addEventListener("mousedown", function(e){
         grabbing = 1;
+        device.touching = true;
         angle = calcAngle(e.clientX, e.clientY)
         e.preventDefault();
       }, {passive: false})
@@ -617,6 +625,7 @@
         if (grabbing == 0) {
           return;
         }
+        device.touching = false;
         grabbing = 0;
         var nangle = calcAngle(e.clientX, e.clientY)
         var adiff = angle - nangle;
@@ -626,13 +635,7 @@
         if (m < 15 || m > 35) {
           return;
         }
-
-        device.msg.Thermostat.Settings.Low =  m - spread/2;
-        device.msg.Thermostat.Settings.High = m + spread/2;
-        drawThermoLines(device.thermoControl, device.msg.Thermostat.Settings.High, device.msg.Thermostat.Settings.Low, device.msg.Thermometer.Temp);
-        var msg = JSON.stringify({Name: device.name, Climate: {High: m + spread/2, Low: m - spread/2}} );
-        ws.send(msg);
-        console.log("sent: ", msg);
+        sendThermoUpdate(m);
         e.preventDefault();
       }, {passive: false})
       device.thermoControl.addEventListener("touchstart", function(e){
@@ -662,6 +665,16 @@
         }
       }, {passive: false})
       device.thermoControl.addEventListener("touchend", function(e){
+        if (touches.length == 0) {
+          return;
+        }
+        var m = mid;
+        if (touches.length == 1) {
+          var nangle = calcAngle(touches[0].t.clientX, touches[0].t.clientY)
+          var adiff = angle - nangle;
+          var frac = adiff / Math.PI;
+          m = mid + (frac*30);
+        }
         console.log("touchend:", e)
         for (var i = 0; i < e.changedTouches.length; i++) {
           var cht = e.changedTouches[i];
@@ -676,6 +689,8 @@
           })
         }
         device.touching = touches.length > 0;
+        sendThermoUpdate(m);
+        e.preventDefault();
         console.log("device.touching: " + device.touching);
       }, {passive: false})
       device.thermoControl.addEventListener("touchmove", function(e){
