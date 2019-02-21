@@ -170,7 +170,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 				log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
 				p.lastEmail = time.Now()
 				p.numEmails++
-				// sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
+				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
 			}
 		}
 	}
