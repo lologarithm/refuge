@@ -1,9 +1,12 @@
 <html>
   <head>
     <style>
-      svg {position: absolute;}
-      body {
-        overscroll-behavior: contain;
+      #interaction {
+        height: 85%;
+        overflow: scroll;
+      }
+      #header {
+        height: 12%;
       }
       svg text {
         -webkit-user-select: none;
@@ -36,14 +39,14 @@
       }
     </style>
   </head>
-  <body style="background-color:white">
+  <body style="background-color:white; touch-action: pinch-zoom;">
     <div id="header">
       <p style="font-size:3em;margin:0">Refuge Home Automation<span id="conn" title="Connection Error"> ! </span></p>
       <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
       <p><a id="edittoggle" href="#">Edit Mode</a></p>
       <p id="debugger"></p>
     </div>
-    <div id="interaction">
+    <div id="interaction" style="">
     <!--  Floor 1-->
     <svg id="maincanvas" height=600 width=600 viewBox="0 0 1200 1200">
       <defs>
@@ -61,102 +64,104 @@
           <stop offset="100%" stop-color="yellow" stop-opacity="0.8"></stop>
         </linearGradient>
       </defs>
-      <g id="floor1">
-      <g transform="translate(50,50)" fill="transparent">
-        <g class="room" id="garage">
-          <rect height=350 width=200></rect>
-          <text fill="black" x="50" y="50">Garage</text>
-        </g>
-        <g transform="translate(200,0)" class="room" id="liv">
-          <rect height=150 width=200></rect>
-          <text fill="black" x="50" y="50">Living</text>
-        </g>
-        <g transform="translate(400,0)" class="room" id="din">
-          <rect height=150 width=150></rect>
-          <text fill="black" x="50" y="50">Dining</text>
-        </g>
-        <g transform="translate(400, 150)" class="room" id="kitch">
-          <rect height=200 width=150></rect>
-          <text fill="black" x="50" y="50">Kitchen</text>
-        </g>
-        <g transform="translate(200, 300)" class="room">
-          <rect height=50 width=200></rect>
-          <text fill="black" x="30" y="30">Hallway</text>
-        </g>
-        <g transform="translate(200, 350)" class="room" id="mb">
-          <rect height=150 width=200></rect>
-          <text fill="black" x="30" y="30">Master Bedroom</text>
-        </g>
-        <g transform="translate(200, 150)" class="room">
-          <rect height=150 width=100></rect>
-          <text fill="black" x="20" y="20">Laundry</text>
-        </g>
-        <g transform="translate(300, 150)" class="room">
-          <rect x=50 height=100 width=50></rect>
+      <g id="floors">
+        <g id="floor1">
+          <g transform="translate(50,50)" fill="transparent">
+            <g class="room" id="garage">
+              <rect height=350 width=200></rect>
+              <text fill="black" x="50" y="50">Garage</text>
+            </g>
+            <g transform="translate(200,0)" class="room" id="liv">
+              <rect height=150 width=200></rect>
+              <text fill="black" x="50" y="50">Living</text>
+            </g>
+            <g transform="translate(400,0)" class="room" id="din">
+              <rect height=150 width=150></rect>
+              <text fill="black" x="50" y="50">Dining</text>
+            </g>
+            <g transform="translate(400, 150)" class="room" id="kitch">
+              <rect height=200 width=150></rect>
+              <text fill="black" x="50" y="50">Kitchen</text>
+            </g>
+            <g transform="translate(200, 300)" class="room">
+              <rect height=50 width=200></rect>
+              <text fill="black" x="30" y="30">Hallway</text>
+            </g>
+            <g transform="translate(200, 350)" class="room" id="mb">
+              <rect height=150 width=200></rect>
+              <text fill="black" x="30" y="30">Master Bedroom</text>
+            </g>
+            <g transform="translate(200, 150)" class="room">
+              <rect height=150 width=100></rect>
+              <text fill="black" x="20" y="20">Laundry</text>
+            </g>
+            <g transform="translate(300, 150)" class="room">
+              <rect x=50 height=100 width=50></rect>
 
-          <line x1="0" y1="10" x2="100" y2="10"></line>
-          <line x1="0" y1="20" x2="100" y2="20"></line>
-          <line x1="0" y1="30" x2="100" y2="30"></line>
-          <line x1="0" y1="40" x2="100" y2="40"></line>
-          <line x1="0" y1="50" x2="100" y2="50"></line>
-          <line x1="0" y1="60" x2="100" y2="60"></line>
-          <line x1="0" y1="70" x2="100" y2="70"></line>
-          <line x1="0" y1="80" x2="100" y2="80"></line>
-          <line x1="0" y1="90" x2="100" y2="90"></line>
+              <line x1="0" y1="10" x2="100" y2="10"></line>
+              <line x1="0" y1="20" x2="100" y2="20"></line>
+              <line x1="0" y1="30" x2="100" y2="30"></line>
+              <line x1="0" y1="40" x2="100" y2="40"></line>
+              <line x1="0" y1="50" x2="100" y2="50"></line>
+              <line x1="0" y1="60" x2="100" y2="60"></line>
+              <line x1="0" y1="70" x2="100" y2="70"></line>
+              <line x1="0" y1="80" x2="100" y2="80"></line>
+              <line x1="0" y1="90" x2="100" y2="90"></line>
 
-          <rect height=100 width=50></rect>
-          <text fill="black" x="20" y="120">Stairs</text>
+              <rect height=100 width=50></rect>
+              <text fill="black" x="20" y="120">Stairs</text>
+            </g>
         </g>
       </g>
-    </g>
-    <!--  Floor 2-->
-    <g id="floor2" transform="translate(650,0)">
-      <g transform="translate(50,50)" fill="transparent">
-        <g class="room" id="fam">
-          <rect height=150 width=250></rect>
-          <text fill="black" x="30" y="50">Family</text>
-        </g>
-        <g transform="translate(250,0)" class="room">
-          <rect height=150 width=100></rect>
-          <text fill="black" x="30" y="50">Office</text>
-        </g>
-        <g transform="translate(250, 150)" class="room">
-          <rect height=200 width=100></rect>
-          <text fill="black" x="30" y="50">Bedroom</text>
-        </g>
-        <g transform="translate(200, 150)" class="room">
-          <rect height=200 width=50></rect>
-        </g>
-        <g transform="translate(0, 300)" class="room">
-          <rect height=50 width=200></rect>
-          <text fill="black" x="130" y="30">Hallway</text>
-        </g>
-        <g transform="translate(0, 350)" class="room">
-          <rect height=150 width=200></rect>
-          <text fill="black" x="30" y="30">Kids Bedroom</text>
-        </g>
-        <g transform="translate(0, 150)" class="room">
-          <rect height=150 width=100></rect>
-          <text fill="black" x="20" y="20">Bathroom</text>
-        </g>
-        <g transform="translate(100, 150)" class="room">
-          <rect x=50 height=100 width=50></rect>
+      <!--  Floor 2-->
+      <g id="floor2" transform="translate(650,0)">
+        <g transform="translate(50,50)" fill="transparent">
+          <g class="room" id="fam">
+            <rect height=150 width=250></rect>
+            <text fill="black" x="30" y="50">Family</text>
+          </g>
+          <g transform="translate(250,0)" class="room">
+            <rect height=150 width=100></rect>
+            <text fill="black" x="30" y="50">Office</text>
+          </g>
+          <g transform="translate(250, 150)" class="room">
+            <rect height=200 width=100></rect>
+            <text fill="black" x="30" y="50">Bedroom</text>
+          </g>
+          <g transform="translate(200, 150)" class="room">
+            <rect height=200 width=50></rect>
+          </g>
+          <g transform="translate(0, 300)" class="room">
+            <rect height=50 width=200></rect>
+            <text fill="black" x="130" y="30">Hallway</text>
+          </g>
+          <g transform="translate(0, 350)" class="room">
+            <rect height=150 width=200></rect>
+            <text fill="black" x="30" y="30">Kids Bedroom</text>
+          </g>
+          <g transform="translate(0, 150)" class="room">
+            <rect height=150 width=100></rect>
+            <text fill="black" x="20" y="20">Bathroom</text>
+          </g>
+          <g transform="translate(100, 150)" class="room">
+            <rect x=50 height=100 width=50></rect>
 
-          <line x1="0" y1="10" x2="100" y2="10"></line>
-          <line x1="0" y1="20" x2="100" y2="20"></line>
-          <line x1="0" y1="30" x2="100" y2="30"></line>
-          <line x1="0" y1="40" x2="100" y2="40"></line>
-          <line x1="0" y1="50" x2="100" y2="50"></line>
-          <line x1="0" y1="60" x2="100" y2="60"></line>
-          <line x1="0" y1="70" x2="100" y2="70"></line>
-          <line x1="0" y1="80" x2="100" y2="80"></line>
-          <line x1="0" y1="90" x2="100" y2="90"></line>
+            <line x1="0" y1="10" x2="100" y2="10"></line>
+            <line x1="0" y1="20" x2="100" y2="20"></line>
+            <line x1="0" y1="30" x2="100" y2="30"></line>
+            <line x1="0" y1="40" x2="100" y2="40"></line>
+            <line x1="0" y1="50" x2="100" y2="50"></line>
+            <line x1="0" y1="60" x2="100" y2="60"></line>
+            <line x1="0" y1="70" x2="100" y2="70"></line>
+            <line x1="0" y1="80" x2="100" y2="80"></line>
+            <line x1="0" y1="90" x2="100" y2="90"></line>
 
-          <rect height=100 width=50></rect>
-          <text fill="black" x="20" y="120">Stairs</text>
+            <rect height=100 width=50></rect>
+            <text fill="black" x="20" y="120">Stairs</text>
+          </g>
         </g>
-      </g>
-    </g>
+      </g> <!-- End of floor -->
+    </g> <!-- End of 'floors'  -->
   </svg>
   </div>
     <svg id="controlTemplates" style="display:none">
@@ -197,13 +202,14 @@
     var editing = false;
 
     var connErr = document.getElementById("conn");
+    var floors = document.getElementById("floors");
     var floor1 = document.getElementById("floor1");
     var floor2 = document.getElementById("floor2");
     var maincanvas = document.getElementById("maincanvas");
-    maincanvas.addEventListener("mousemove", function(e) {
-      var svgp = svgPoint(maincanvas, e.clientX, e.clientY)
-      // console.log("SVG Point:", svgp);
-    });
+    // maincanvas.addEventListener("mousemove", function(e) {
+    //   var svgp = svgPoint(maincanvas, e.clientX, e.clientY)
+    //   console.log("SVG Point:", svgp);
+    // });
     var header = document.getElementById("header");
     // Handle window resizing -- allow changing between portrait and landscape.
     var doSize = function() {
@@ -211,14 +217,14 @@
       if (window.innerWidth < window.innerHeight) {
         var w = window.innerWidth;
         maincanvas.setAttribute("width", w-50);
-        maincanvas.setAttribute("height", w*2);
+        maincanvas.setAttribute("height", (w-50)*2);
         maincanvas.setAttribute("viewBox", "0 0 600 1200");
         floor2.setAttribute("transform", "translate(0,600)");
       } else {
         var maxHeight = (window.innerHeight-headerHeight);
         var w = window.innerWidth;
         maincanvas.setAttribute("width", w-50);
-        maincanvas.setAttribute("height", maxHeight);
+        maincanvas.setAttribute("height", "100%");
         maincanvas.setAttribute("viewBox", "0 0 1200 600");
         floor2.setAttribute("transform", "translate(600, 0)");
       }
