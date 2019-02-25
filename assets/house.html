@@ -1,7 +1,7 @@
 <html>
   <head>
-    <style> svg {position: absolute;}</style>
     <style>
+      svg {position: absolute;}
       body {
         overscroll-behavior: contain;
       }
@@ -31,11 +31,14 @@
       }
       line { stroke-width: 1; stroke: black}
       .room text { font: normal 13px sans-serif; pointer-events: none;}
+      #conn {
+        color: red;
+      }
     </style>
   </head>
   <body style="background-color:white">
     <div id="header">
-      <p style="font-size:3em;margin:0">Refuge Home Automation</p>
+      <p style="font-size:3em;margin:0">Refuge Home Automation<span id="conn" title="Connection Error"> ! </span></p>
       <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
       <p><a id="edittoggle" href="#">Edit Mode</a></p>
       <p id="debugger"></p>
@@ -193,6 +196,7 @@
     var ws;
     var editing = false;
 
+    var connErr = document.getElementById("conn");
     var floor1 = document.getElementById("floor1");
     var floor2 = document.getElementById("floor2");
     var maincanvas = document.getElementById("maincanvas");
@@ -247,6 +251,7 @@
     // websocket functions
     function onOpen(event) {
       console.log("Socket opened.");
+      conn.innerText = "";
     }
 
     function onMessage(event) {
@@ -264,6 +269,7 @@
     }
 
     function onClose(event) {
+      conn.innerText = "!";
       if (event) {
         console.log("Closed event: ", event);
       }
@@ -283,7 +289,6 @@
         ws.addEventListener('message', onMessage);
       }, timeout)
     }
-
     function updateThermo(msg) {
       var id = "td" + msg.Name.replace(/\s/g, "");
       var device = devices[id];
@@ -314,7 +319,6 @@
           msg: msg,
           thermoControl: thermoControl
         };
-        device.msg = msg;
         devices[id] = device;
         if (msg.Pos.RoomID != "") {
           // Attach it to the floor instead of the room.
@@ -367,7 +371,7 @@
               icon.remove();
               icon = null;
             }
-            drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
+            // drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
             // If we have no heating/cooling check again in 1 second.
             window.setTimeout(draw, 1000);
           }
@@ -490,7 +494,6 @@
         itemEle.childNodes[0].textContent = msg.Name;
         device = {};
         devices[id] = device;
-
         if (msg.Pos.RoomID != "") {
           var attached = document.getElementById(msg.Pos.RoomID);
           device.attached = attached;
@@ -639,8 +642,12 @@
         e.preventDefault();
       }, {passive: false})
       device.thermoControl.addEventListener("touchstart", function(e){
+        e.preventDefault();
+        if (!e.cancelable) {
+          console.log("Not able to cancel this event: ", e);
+          return;
+        }
         device.touching = true;
-        console.log("TouchStart:", e);
         for (var i = 0; i < e.changedTouches.length; i++) {
             touches.push({
               t: copyTouch(e.changedTouches[i]),
@@ -661,7 +668,7 @@
             e.preventDefault();
           }
         }
-      }, {passive: false})
+      }, {capture: true, passive: false})
       device.thermoControl.addEventListener("touchend", function(e){
         if (touches.length == 0) {
           return;
@@ -673,14 +680,11 @@
           var frac = adiff / Math.PI;
           m = mid + (frac*30);
         }
-        console.log("touchend:", e)
         for (var i = 0; i < e.changedTouches.length; i++) {
           var cht = e.changedTouches[i];
           touches = touches.filter(function(v){
             if (v.t.identifier == cht.identifier) {
-              if (e.cancelable) {
-                e.preventDefault();
-              }
+              e.preventDefault();
               return false;
             }
             return true;
@@ -689,22 +693,24 @@
         device.touching = touches.length > 0;
         sendThermoUpdate(m);
         e.preventDefault();
-        console.log("device.touching: " + device.touching);
       }, {passive: false})
       device.thermoControl.addEventListener("touchmove", function(e){
         // console.log("TouchMove: ", touches);
         if (touches.length == 0) {
           return;
         }
+        var ch = false;
         for (var i = 0; i < e.changedTouches.length; i++) {
           var chTch = e.changedTouches[i];
           var touch = getTouch(chTch.identifier);
           if (touch != null) {
             touch.t = copyTouch(chTch);
-            if (e.cancelable) {
-              e.preventDefault();
-            }
+            e.preventDefault();
+            ch = true;
           }
+        }
+        if (!ch) {
+          return;
         }
         if (touches.length == 1) {
           handleMove(touches[0].t.clientX, touches[0].t.clientY);
@@ -839,6 +845,9 @@
           return;
         }
         touching = true;
+        if (!e.cancelable) {
+          console.log("Can't cancel this touch event...");
+        }
 
         var brect = device.itemEle.getBoundingClientRect();
         var srect = svgPoint(maincanvas, brect.x, brect.y);
@@ -881,28 +890,28 @@
         lV = convertToF(lV);
       }
 
-        var ca = Math.PI/2 - (((high-10)/30) * Math.PI);
-        var x = Math.cos(ca);
-        var y = Math.sin(ca);
-        thermoControl.childNodes[5].setAttribute("d", "M " + (x * 100) + " " + (100+(y*100)) + "L " + (x*50) + " " + (100+(y*50)));
-        thermoControl.childNodes[13].textContent = (hV).toFixed(0);
-        thermoControl.childNodes[13].setAttribute("x", x*120);
-        thermoControl.childNodes[13].setAttribute("y", 100+(y*120));
+      var ca = Math.PI/2 - (((high-10)/30) * Math.PI);
+      var x = Math.cos(ca);
+      var y = Math.sin(ca);
+      thermoControl.childNodes[5].setAttribute("d", "M " + (x * 100) + " " + (100+(y*100)) + "L " + (x*50) + " " + (100+(y*50)));
+      thermoControl.childNodes[13].textContent = (hV).toFixed(0);
+      thermoControl.childNodes[13].setAttribute("x", x*120);
+      thermoControl.childNodes[13].setAttribute("y", 100+(y*120));
 
-        var ca = Math.PI/2 - (((low-10)/30) * Math.PI);
-        var xl = Math.cos(ca);
-        var yl = Math.sin(ca);
-        thermoControl.childNodes[7].setAttribute("d", "M " + (xl * 100) + " " + (100+(yl*100)) + "L " + (xl*50) + " " + (100+(yl*50)));
-        thermoControl.childNodes[15].textContent = (lV).toFixed(0);
-        thermoControl.childNodes[15].setAttribute("x", xl*120);
-        thermoControl.childNodes[15].setAttribute("y", 100+(yl*120));
+      var ca = Math.PI/2 - (((low-10)/30) * Math.PI);
+      var xl = Math.cos(ca);
+      var yl = Math.sin(ca);
+      thermoControl.childNodes[7].setAttribute("d", "M " + (xl * 100) + " " + (100+(yl*100)) + "L " + (xl*50) + " " + (100+(yl*50)));
+      thermoControl.childNodes[15].textContent = (lV).toFixed(0);
+      thermoControl.childNodes[15].setAttribute("x", xl*120);
+      thermoControl.childNodes[15].setAttribute("y", 100+(yl*120));
 
-        var ca = Math.PI/2 - (((temp-10)/30) * Math.PI);
-        var xt = Math.cos(ca);
-        var yt = Math.sin(ca);
-        thermoControl.childNodes[9].setAttribute("d", "M " + (xt * 110) + " " + (100+(yt*110)) + "L " + (xt*40) + " " + (100+(yt*40)));
-        // Highlighted area
-        thermoControl.childNodes[11].setAttribute("d", "M " + x*50 + " " + (100+(y*50)) + " L " + x*100 + " " + (100+(y*100)) + " A 100 100 0 0 1 " + (xl * 100) + " " + (100+(yl*100)) + " L " + (xl*50) + " " + (100+(yl*50)) + " A 50 50 0 0 0 "  + x*50 + " " + (100+(y*50)));
+      var ca = Math.PI/2 - (((temp-10)/30) * Math.PI);
+      var xt = Math.cos(ca);
+      var yt = Math.sin(ca);
+      thermoControl.childNodes[9].setAttribute("d", "M " + (xt * 110) + " " + (100+(yt*110)) + "L " + (xt*40) + " " + (100+(yt*40)));
+      // Highlighted area
+      thermoControl.childNodes[11].setAttribute("d", "M " + x*50 + " " + (100+(y*50)) + " L " + x*100 + " " + (100+(y*100)) + " A 100 100 0 0 1 " + (xl * 100) + " " + (100+(yl*100)) + " L " + (xl*50) + " " + (100+(yl*50)) + " A 50 50 0 0 0 "  + x*50 + " " + (100+(y*50)));
     }
 
     function toggleUnits() {
