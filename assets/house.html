@@ -29,7 +29,7 @@
         touch-action: none;
       }
       .room rect {
-        stroke: black;
+        stroke: #222288;
         stroke-width: 2;
       }
       line { stroke-width: 1; stroke: black}
@@ -173,12 +173,21 @@
           <path d="" stroke="gray" fill="gray" stroke-width="1px"></path>
           <path d="" stroke="gray" fill="gray" stroke-width="1px"></path>
           <path d="" stroke="gray" stroke-width="2px"></path>
-          <path d="M 50 100 L 100 100 A 100 100 0 0 1 0 200 L 0 150 A 50 50 0 0 0 50 100" fill="black" fill-opacity="0.3"></path>
+          <path d="M 50 100 L 100 100 A 100 100 0 0 1 0 200 L 0 150 A 50 50 0 0 0 50 100" fill="black" fill-opacity="0.4"></path>
           <text fill="black" style="font: normal 20px sans-serif;" x=0 y=0>T</text>
           <text fill="black" style="font: normal 20px sans-serif;" x=0 y=0>T</text>
         </g>
-        <circle cx=20 cy=20 r=40 style="stroke:gray;fill:white"></circle>
-        <text fill="black" stroke="white" style="font: normal 36px sans-serif;" x=-2 y=32 class="temp">70</text>
+        <circle cx=20 cy=20 r=50 stroke="gray" fill="gray">
+          <animate id="animation1"
+             attributeName="fill-opacity"
+             from="0.6" to="1" dur="2s"
+             begin="0s;animation2.end" />
+          <animate id="animation2"
+             attributeName="fill-opacity"
+             from="1" to="0.6" dur="2s"
+             begin="animation1.end" />
+        </circle>
+        <text fill="white" stroke="white" style="font: normal 36px sans-serif;" x=-5 y=32 class="temp">70</text>
       </g>
       <g class="switch" id="switchTemplate"><title>unnamed</title>
         <rect height=50 width=50 stroke="black" fill="white"></rect>
@@ -332,56 +341,6 @@
           device.attached = attached;
           attached.parentElement.parentElement.appendChild(itemEle);
           itemEle.setAttribute("transform", "translate(" + msg.Pos.X +","+ msg.Pos.Y+") scale(1.25)");
-          var atBR = attached.getBoundingClientRect();
-          var icon = null;
-          var fadeStep = 0;
-          var draw = function() {
-            if (editing) {
-              return;
-            }
-            if (device.msg.Thermostat.State > 0) {
-              if (icon != null) {
-                if (fadeStep < 80) {
-                  icon.style.opacity = (100-fadeStep)*0.01;
-                } else {
-                  icon.style.opacity = (fadeStep-60)*0.01;
-                }
-                fadeStep++;
-                if (fadeStep == 160) {
-                  fadeStep = 0;
-                }
-              } else if (device.msg.Thermostat.State == 1) {
-                  icon = document.getElementById("cooling").cloneNode(true);
-                  icon.id = ""
-                  var x = atBR.width/3-40;
-                  var y = atBR.height/3-40;
-                  icon.setAttribute("stroke", "blue");
-                  icon.setAttribute("fill", "blue");
-                  icon.setAttribute("transform","translate("+x+","+y+") scale(2)");
-                  attached.appendChild(icon);
-              } else if (device.msg.Thermostat.State == 3) {
-                  icon = document.getElementById("heating").cloneNode(true);
-                  icon.id = ""
-                  var x = atBR.width/3-50;
-                  var y = atBR.height/3-50;
-                  icon.setAttribute("stroke", "red");
-                  icon.setAttribute("fill", "red");
-                  icon.setAttribute("transform","translate("+x+","+y+") scale(1.2)");
-                  icon.style.opacity = 1.0;
-                  attached.appendChild(icon);
-              }
-              window.requestAnimationFrame(draw);
-              return;
-            }
-            if (icon != null) {
-              icon.remove();
-              icon = null;
-            }
-            // drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
-            // If we have no heating/cooling check again in 1 second.
-            window.setTimeout(draw, 1000);
-          }
-          draw();
         } else {
           maincanvas.appendChild(itemEle);
         }
@@ -410,7 +369,7 @@
       device.msg = msg;
       var target = msg.Thermostat.Target;
       if (!device.touching) {
-        drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp);
+        drawThermoLines(device.thermoControl, msg.Thermostat.Settings.High, msg.Thermostat.Settings.Low, msg.Thermometer.Temp, thermStatus.committed);
       }
 
       var temp = msg.Thermometer.Temp;
@@ -421,6 +380,19 @@
       // Now update the values for current temp/hum and target.
       // thdiv.childNodes[2].childNodes[1].innerText = thdata.Humidity;
       device.itemEle.childNodes[7].textContent = temp.toFixed(0) + "*";
+      if (msg.Thermostat.State == 1) { // Cooling
+        maincanvas.unpauseAnimations();
+        device.itemEle.childNodes[5].setAttribute("fill", "#3399FF");
+      } else if (msg.Thermostat.State == 2) { // Fan
+        maincanvas.unpauseAnimations();
+        device.itemEle.childNodes[5].setAttribute("fill", "#CCCCCC");
+      } else if (msg.Thermostat.State == 3) { // Heating
+        maincanvas.unpauseAnimations();
+        device.itemEle.childNodes[5].setAttribute("fill", "#FF6666");
+      } else {
+        maincanvas.pauseAnimations();
+        device.itemEle.childNodes[5].setAttribute("fill", "#9C9C9C");
+      }
     }
 
     function updatePortal(msg) {
@@ -593,7 +565,7 @@
         if (m < 15 || m > 35) {
           return;
         }
-        drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp);
+        drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp, thermStatus.setting);
       }
       var calcAngle = function(x,y) {
         var esp = svgPoint(maincanvas, x, y);
@@ -611,7 +583,7 @@
       var sendThermoUpdate = function(m) {
         device.msg.Thermostat.Settings.Low =  m - spread/2;
         device.msg.Thermostat.Settings.High = m + spread/2;
-        drawThermoLines(device.thermoControl, device.msg.Thermostat.Settings.High, device.msg.Thermostat.Settings.Low, device.msg.Thermometer.Temp);
+        drawThermoLines(device.thermoControl, device.msg.Thermostat.Settings.High, device.msg.Thermostat.Settings.Low, device.msg.Thermometer.Temp, thermStatus.pushed);
         var msg = JSON.stringify({Name: device.name, Climate: {High: m + spread/2, Low: m - spread/2}} );
         ws.send(msg);
         console.log("sent: ", msg);
@@ -733,7 +705,7 @@
           }
           var l = mid - spread/2;
           var h = mid + spread/2;
-          drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp);
+          drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp, thermStatus.setting);
         }
       }, {passive: false})
       device.thermoControl.addEventListener("touchcancel", function(e){
@@ -887,7 +859,12 @@
       }, false);
     }
 
-    function drawThermoLines(thermoControl, high, low, temp) {
+    var thermStatus = {
+      committed: 0,
+      setting: 1,
+      pushed: 2,
+    };
+    function drawThermoLines(thermoControl, high, low, temp, status) {
       // var hV = (high+low)/2;
       var hV = high;
       var lV = low;
@@ -918,6 +895,16 @@
       thermoControl.childNodes[9].setAttribute("d", "M " + (xt * 110) + " " + (100+(yt*110)) + "L " + (xt*40) + " " + (100+(yt*40)));
       // Highlighted area
       thermoControl.childNodes[11].setAttribute("d", "M " + x*50 + " " + (100+(y*50)) + " L " + x*100 + " " + (100+(y*100)) + " A 100 100 0 0 1 " + (xl * 100) + " " + (100+(yl*100)) + " L " + (xl*50) + " " + (100+(yl*50)) + " A 50 50 0 0 0 "  + x*50 + " " + (100+(y*50)));
+      if (status == thermStatus.pushed) {
+        thermoControl.childNodes[11].setAttribute("fill-opacity", 0.5);
+        thermoControl.childNodes[11].setAttribute("fill", "black");
+      } else if (status == thermStatus.setting) {
+        thermoControl.childNodes[11].setAttribute("fill-opacity", 0.2);
+        thermoControl.childNodes[11].setAttribute("fill", "yellow");
+      } else {
+        thermoControl.childNodes[11].setAttribute("fill-opacity", 0.3);
+        thermoControl.childNodes[11].setAttribute("fill", "yellow");
+      }
     }
 
     function toggleUnits() {

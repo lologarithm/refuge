@@ -26,7 +26,7 @@ func fakeMonitor() chan rnet.Msg {
 			time.Sleep(3 * time.Second)
 			dev := &refuge.Device{
 				Name:        "Test Family Room",
-				Thermostat:  &refuge.Thermostat{Settings: climate.Settings{High: 30, Low: 20}},
+				Thermostat:  &refuge.Thermostat{Settings: climate.Settings{High: 26, Low: 18}},
 				Thermometer: &refuge.Thermometer{Temp: 17 + (float32(i % 3)), Humidity: 10.1},
 			}
 			if dev.Thermometer.Temp < dev.Thermostat.Settings.Low {
