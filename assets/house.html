@@ -475,14 +475,15 @@
         if (msg.Pos.RoomID != "") {
           var attached = document.getElementById(msg.Pos.RoomID);
           device.attached = attached;
-          itemEle.setAttribute("transform", "translate(" + msg.Pos.X + "," + msg.Pos.Y + ")")
+          itemEle.setAttribute("transform", "translate(" + msg.Pos.X + "," + msg.Pos.Y + ") scale(1.25)")
           attached.parentElement.parentElement.appendChild(itemEle);
+        } else {
+          maincanvas.appendChild(itemEle);
         }
         device.itemEle = itemEle;
         device.name = msg.Name;
         device.msg = msg;
         addEditorControls(device);
-        maincanvas.appendChild(itemEle);
         itemEle.addEventListener("click", function() {
           var on = 1;
           if (device.msg.Switch.On) {
