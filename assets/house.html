@@ -2,11 +2,21 @@
   <head>
     <style>
       #interaction {
-        height: 85%;
         overflow: scroll;
+        position: absolute;
+        bottom: 0px;
       }
       #header {
-        height: 12%;
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        padding: 3px;
+        width: 99%;
+        z-index: 1;
+      }
+      #info {
+        font: 25px sans-serif;
+        width: 100%
       }
       svg text {
         -webkit-user-select: none;
@@ -51,10 +61,16 @@
   </head>
   <body style="background-color:white; touch-action: pinch-zoom;">
     <div id="header">
-      <p style="font-size:3em;margin:0">Refuge Home Automation<span id="conn" title="Connection Error"> ! </span></p>
-      <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
-      <p><a id="edittoggle" href="#">Edit Mode</a></p>
-      <p id="debugger"></p>
+      <div id="title">
+        <p style="font-size:3em;margin:0">Refuge Home Automation<span id="conn" title="Connection Error"> ! </span></p>
+        <p style="font-size:1em">Units: <a id="unittoggle" href="#">Celcius</a></p>
+        <p><a id="edittoggle" href="#">Edit Mode</a></p>
+        <p id="debugger"></p>
+      </div>
+      <div id="info" style="background-color: #FEFEFE; border-bottom: 1px solid black; border-top: 1px solid black">
+        <p id="dt">Date</p>
+        <p id="weather">Weather</p>
+      </div>
     </div>
     <div id="interaction" style="">
     <!--  Floor 1-->
@@ -222,6 +238,7 @@
     var floor1 = document.getElementById("floor1");
     var floor2 = document.getElementById("floor2");
     var maincanvas = document.getElementById("maincanvas");
+    var inter = document.getElementById("interaction");
 
     // debugging handlers
     // maincanvas.addEventListener("mousemove", function(e) {
@@ -234,22 +251,29 @@
     // allow changing between portrait and landscape.
     var doSize = function() {
       var headerHeight = header.getBoundingClientRect().height;
+      inter.style.top = (headerHeight-25)+"px";
+      var w = window.innerWidth-25;
       if (window.innerWidth < window.innerHeight) {
-        var w = window.innerWidth;
-        maincanvas.setAttribute("width", w-50);
-        maincanvas.setAttribute("height", (w-50)*2);
+        maincanvas.setAttribute("width", w);
+        maincanvas.setAttribute("height", (w)*2);
         maincanvas.setAttribute("viewBox", "0 0 600 1200");
         floor2.setAttribute("transform", "translate(0,600)");
       } else {
         var maxHeight = (window.innerHeight-headerHeight);
-        var w = window.innerWidth;
-        maincanvas.setAttribute("width", w-50);
+        maincanvas.setAttribute("width", w);
         maincanvas.setAttribute("height", "100%");
         maincanvas.setAttribute("viewBox", "0 0 1200 600");
         floor2.setAttribute("transform", "translate(600, 0)");
       }
     };
-
+    var dt = document.getElementById("dt");
+    var weather = document.getElementById("weather");
+    var doInfo = function() {
+      dt.innerText = getTime();
+      getWeather(weather);
+      window.setTimeout(doInfo, 60000);
+    }
+    doInfo();
     window.addEventListener("resize", doSize)
     doSize();
     var toggle = document.getElementById("unittoggle");
@@ -317,7 +341,7 @@
       var id = prefix + msg.Name.replace(/\s/g, "");
       var device = devices[id];
 
-      if (device == null || device == undefined)  {
+      if (device == null || device == undefined) {
         // Create base device
         device = createDevice(id, msg);
 
@@ -493,8 +517,6 @@
       }
     }
 
-    var inter = document.getElementById("interaction");
-
     // Animates the thermostat dial spinning out.
     function animateThermoOpen(device) {
       device.itemEle.style.backgroundColor = "gray";
@@ -561,8 +583,8 @@
         var m = mid + (frac*30);
         var l = m - spread/2;
         var h = m + spread/2;
-        if (m < 15 || m > 35) {
-          return;
+        if (m < 15 || m > 35 || spread > 25) {
+          return; // prevent stupid mistakes
         }
         drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp, thermStatus.setting);
       }
@@ -580,6 +602,9 @@
         return angle;
       }
       var sendThermoUpdate = function(m) {
+        if (m < 15 || m > 35 || spread > 25) {
+          return; // prevent stupid mistakes
+        }
         device.msg.Thermostat.Settings.Low =  m - spread/2;
         device.msg.Thermostat.Settings.High = m + spread/2;
         drawThermoLines(device.thermoControl, device.msg.Thermostat.Settings.High, device.msg.Thermostat.Settings.Low, device.msg.Thermometer.Temp, thermStatus.pushed);
@@ -948,6 +973,33 @@
     // copyTouch is a touch helper to clone touch events (some browsers re-use the same touch objects)
     function copyTouch(touch) {
       return { identifier: touch.identifier, clientX: touch.clientX, clientY: touch.clientY };
+    }
+
+    function getWeather(domele) {
+      // http://wttr.in/?format=4
+      var xmlhttp = new XMLHttpRequest();
+
+      xmlhttp.onreadystatechange = function() {
+          if (xmlhttp.readyState == XMLHttpRequest.DONE) {   // XMLHttpRequest.DONE == 4
+             if (xmlhttp.status == 200) {
+                 domele.innerHTML = xmlhttp.responseText;
+             }
+             else if (xmlhttp.status == 400) {
+                alert('There was an error 400');
+             }
+             else {
+                 alert('something else other than 200 was returned');
+             }
+          }
+      };
+
+      xmlhttp.open("GET", "/weather", true);
+      xmlhttp.send();
+    }
+
+    function getTime() {
+      var d = new Date();
+      return d.toLocaleDateString("en-US", { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + " " + d.toLocaleTimeString();
     }
   </script>
 </html>

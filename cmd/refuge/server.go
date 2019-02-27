@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"gitlab.com/lologarithm/refuge/refuge"
@@ -40,6 +41,10 @@ type server struct {
 
 func (srv *server) getDevice(name string) (device *refugeDevice) {
 	name = strings.Replace(name, " ", "", -1)
+	if name == "" {
+		log.Printf("[Error] Attempted to fetch an empty name string!")
+		return nil
+	}
 	srv.datalock.Lock()
 	device = srv.Devices[name]
 	srv.datalock.Unlock()
@@ -143,6 +148,32 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		}
 	}()
 
+	weather := []byte{}
+	lastWeather := time.Now()
+	var wmutex sync.RWMutex
+	http.HandleFunc("/weather", func(w http.ResponseWriter, r *http.Request) {
+		wmutex.RLock()
+		if time.Now().Sub(lastWeather) < time.Minute && len(weather) > 0 {
+			w.Write(weather)
+			wmutex.RUnlock()
+			return
+		}
+		wmutex.RUnlock()
+		wmutex.Lock()
+		resp, err := http.Get("http://wttr.in/?format=4")
+		if err != nil {
+			log.Printf("failed to get weather data: %v", err)
+		}
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("failed to get weather data: %v", err)
+		}
+		resp.Body.Close()
+		weather = data
+		lastWeather = time.Now()
+		w.Write(weather)
+		wmutex.Unlock()
+	})
 	http.HandleFunc("/stream", srv.clientStreamHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if auth(w, r) == AccessNone {
