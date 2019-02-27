@@ -160,7 +160,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		}
 		wmutex.RUnlock()
 		wmutex.Lock()
-		resp, err := http.Get("http://wttr.in/?format=4")
+		resp, err := http.Get("http://wttr.in/Bozeman?format=4")
 		if err != nil {
 			log.Printf("failed to get weather data: %v", err)
 		}
