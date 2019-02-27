@@ -127,7 +127,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 			// Serialize for clients
 			d, err := json.Marshal(up)
 			if err != nil {
-				log.Printf("Failed to marshal thermal data to json: %s", err)
+				log.Printf("[Error] Failed to marshal thermal data to json: %s", err)
 			}
 
 			// Now push the update to all connected websockets
@@ -148,31 +148,38 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		}
 	}()
 
+	// Little weather proxy/cache for the frontends
 	weather := []byte{}
 	lastWeather := time.Now()
 	var wmutex sync.RWMutex
 	http.HandleFunc("/weather", func(w http.ResponseWriter, r *http.Request) {
 		wmutex.RLock()
-		if time.Now().Sub(lastWeather) < time.Minute && len(weather) > 0 {
+		if time.Now().Sub(lastWeather) < (time.Minute*15) && len(weather) > 0 {
 			w.Write(weather)
 			wmutex.RUnlock()
 			return
 		}
 		wmutex.RUnlock()
 		wmutex.Lock()
+		defer wmutex.Unlock()
+
 		resp, err := http.Get("http://wttr.in/Bozeman?format=4")
 		if err != nil {
-			log.Printf("failed to get weather data: %v", err)
+			log.Printf("[Error] Failed to get weather data: %v", err)
+			w.Write(weather)
+			return
 		}
 		data, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Printf("failed to get weather data: %v", err)
+			log.Printf("[Error] Failed to get weather data: %v", err)
+			w.Write(weather)
+			return
 		}
+
 		resp.Body.Close()
 		weather = data
 		lastWeather = time.Now()
 		w.Write(weather)
-		wmutex.Unlock()
 	})
 	http.HandleFunc("/stream", srv.clientStreamHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
