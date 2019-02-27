@@ -1,6 +1,7 @@
 <html>
   <head>
     <style>
+      @import url('https://fonts.googleapis.com/css?family=Fira+Sans');
       #interaction {
         overflow: scroll;
         position: absolute;
@@ -13,10 +14,10 @@
         padding: 3px;
         width: 99%;
         z-index: 1;
-        font-family: 'Lato', sans-serif;
+        font-family: 'Fira Sans', sans-serif;
       }
       #info {
-        font-size: 1.5rem;
+        font-size: 1.75rem;
         width: 100%
       }
       svg text {
@@ -44,7 +45,7 @@
         stroke-width: 2;
       }
       line { stroke-width: 1; stroke: black}
-      .room text { font: normal 13px Lato; pointer-events: none;}
+      .room text { font: normal 13px 'Fira Sans'; pointer-events: none;}
       #conn {
         color: red;
       }
@@ -59,7 +60,6 @@
         animation: fadein 2s ease-in alternate infinite;
       }
     </style>
-    <link href="https://fonts.googleapis.com/css?family=Lato" rel="stylesheet">
   </head>
   <body style="background-color:white; touch-action: pinch-zoom;">
     <div id="header">
@@ -270,12 +270,16 @@
     };
     var dt = document.getElementById("dt");
     var weather = document.getElementById("weather");
-    var doInfo = function() {
+    var doTime = function() {
       dt.innerText = getTime();
-      getWeather(weather);
-      window.setTimeout(doInfo, 60000);
+      window.setTimeout(doTime, 1000);
     }
-    doInfo();
+    var doWeather = function() {
+      getWeather(weather);
+      window.setTimeout(doWeather, 60000);
+    }
+    doWeather();
+    doTime();
     window.addEventListener("resize", doSize)
     doSize();
     var toggle = document.getElementById("unittoggle");
