@@ -77,7 +77,6 @@ func monitor(test bool) chan rnet.Msg {
 	go func() {
 		for {
 			reading := rnet.Msg{}
-			log.Printf("Waiting for message...")
 			err := dec.Decode(&reading)
 			if err != nil {
 				log.Printf("Failed to decode json msg: %s", err)
@@ -89,11 +88,11 @@ func monitor(test bool) chan rnet.Msg {
 			}
 			switch {
 			case reading.Thermostat != nil:
-				log.Printf("New reading: %#v", reading.Thermostat)
+				// log.Printf("New reading: %#v", reading.Thermostat)
 			case reading.Switch != nil:
-				log.Printf("New Switch: %#v", reading.Switch)
+				// log.Printf("New Switch: %#v", reading.Switch)
 			case reading.Portal != nil:
-				log.Printf("New Portal: %#v", reading.Portal)
+				// log.Printf("New Portal: %#v", reading.Portal)
 			default:
 				log.Printf("Unknown message: %#v", reading)
 				continue

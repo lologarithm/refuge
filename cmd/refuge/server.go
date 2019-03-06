@@ -1,14 +1,17 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/json"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -30,11 +33,13 @@ const (
 )
 
 type server struct {
-	datalock *sync.Mutex
+	datalock *sync.RWMutex
 	Devices  map[string]*refugeDevice
 
 	clientslock   *sync.Mutex
 	clientStreams []*websocket.Conn
+
+	eventData []refuge.TempEvent
 }
 
 // Getter functions convert names to device keys (avoiding spaces)
@@ -62,7 +67,7 @@ type refugeDevice struct {
 func serve(host string, deviceStream chan rnet.Msg) {
 	// localTime := time.Location{}
 	srv := &server{
-		datalock:    &sync.Mutex{},
+		datalock:    &sync.RWMutex{},
 		Devices:     map[string]*refugeDevice{},
 		clientslock: &sync.Mutex{},
 	}
@@ -70,17 +75,45 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	deviceUpdates := make(chan refuge.Device, 5)
 	go portalAlert(&globalConfig, deviceUpdates)
 
+	done := make(chan struct{}, 1)
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
 	go func() {
+		// First load historical data
+		statFile, err := os.OpenFile("stats", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			log.Printf("Failed to open existing stats file: %s", err)
+		}
+		gdec := gob.NewDecoder(statFile)
+		events := []refuge.TempEvent{}
 		for {
-			msg := <-deviceStream
+			var e refuge.TempEvent
+			err = gdec.Decode(&e)
+			if err != nil {
+				log.Printf("[Error] Failed to deserialize data: %s", err)
+				break
+			}
+			events = append(events, e)
+		}
+		srv.datalock.Lock()
+		srv.eventData = events
+		srv.datalock.Unlock()
+
+		enc := gob.NewEncoder(statFile)
+		for {
+			msg, ok := <-deviceStream
+			if !ok {
+				statFile.Sync()
+				statFile.Close()
+				done <- struct{}{}
+				return
+			}
 			td := msg.Device
 			existing := srv.getDevice(td.Name)
-			new := &refugeDevice{
+			newd := &refugeDevice{
 				device: *td,
 			}
 			if existing != nil {
-				new.pos = existing.pos
+				newd.pos = existing.pos
 				if existing.device.Addr != td.Addr {
 					raddr, err := net.ResolveUDPAddr("udp", td.Addr)
 					if err != nil {
@@ -91,9 +124,9 @@ func serve(host string, deviceStream chan rnet.Msg) {
 						log.Printf("Failed to open UDP: %s", err)
 						continue
 					}
-					new.conn = conn
+					newd.conn = conn
 				} else {
-					new.conn = existing.conn
+					newd.conn = existing.conn
 				}
 			} else {
 				raddr, err := net.ResolveUDPAddr("udp", td.Addr)
@@ -105,24 +138,37 @@ func serve(host string, deviceStream chan rnet.Msg) {
 					log.Printf("Failed to open UDP: %s", err)
 					continue
 				}
-				new.conn = conn
+				newd.conn = conn
 
 				fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
 				if err == nil {
 					pos := &Position{}
 					json.Unmarshal(fdata, pos)
-					new.pos = *pos
+					newd.pos = *pos
 				}
+			}
+			if newd.device.Thermostat != nil {
+				te := refuge.TempEvent{
+					Name:     newd.device.Name,
+					Time:     time.Now(),
+					Temp:     newd.device.Thermometer.Temp,
+					Humidity: newd.device.Thermometer.Humidity,
+					State:    newd.device.Thermostat.State,
+				}
+				enc.Encode(&te)
+				srv.datalock.Lock()
+				srv.eventData = append(srv.eventData, te)
+				srv.datalock.Unlock()
 			}
 			// Update our cached thermostat
 			srv.datalock.Lock()
-			srv.Devices[strings.Replace(td.Name, " ", "", -1)] = new
+			srv.Devices[strings.Replace(td.Name, " ", "", -1)] = newd
 			srv.datalock.Unlock()
 			deviceUpdates <- *td // push updates to alert system
 
 			up := &DeviceUpdate{
-				Device: &new.device,
-				Pos:    new.pos,
+				Device: &newd.device,
+				Pos:    newd.pos,
 			}
 			// Serialize for clients
 			d, err := json.Marshal(up)
@@ -148,6 +194,17 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		}
 	}()
 
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		access := auth(w, r)
+		if access == AccessNone {
+			return
+		}
+		enc := json.NewEncoder(w)
+		srv.datalock.RLock()
+		enc.Encode(srv.eventData)
+		srv.datalock.RUnlock()
+	})
+
 	// Little weather proxy/cache for the frontends
 	weather := []byte{}
 	lastWeather := time.Now()
@@ -163,7 +220,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		wmutex.Lock()
 		defer wmutex.Unlock()
 
-		resp, err := http.Get("http://wttr.in/Bozeman?format=4")
+		resp, err := http.Get("http://wttr.in/Bozeman?format=4") // TODO: make location configurable
 		if err != nil {
 			log.Printf("[Error] Failed to get weather data: %v", err)
 			w.Write(weather)
@@ -186,19 +243,51 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		if auth(w, r) == AccessNone {
 			return // Don't let them access
 		}
-		// Technically not sending anything over template right now...
+		path := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		switch path[0] {
+		case "static", "assets":
+			if path[1] == "house.html" {
+				break
+			}
+			Static(w, r, path)
+			return
+		}
+		// Default to base site.
 		tmpl, err := template.ParseFiles("./assets/house.html")
 		if err != nil {
 			log.Fatalf("unable to parse html: %s", err)
 		}
 		tmpl.Execute(w, nil)
+
 	})
 
 	log.Printf("starting webhost on: %s", host)
-	err := http.ListenAndServe(host, nil)
-	if err != nil {
-		log.Fatal(err)
+	go func() {
+		err := http.ListenAndServe(host, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	close(deviceStream)
+	<-done
+	log.Printf("Done!")
+}
+
+// Static will serve the given file from the path in the url.
+func Static(w http.ResponseWriter, r *http.Request, path []string) {
+	if len(path) < 2 || !strings.Contains(path[len(path)-1], ".") {
+		// Only serve actual files here.
+		return
 	}
+	file := strings.Join(path, "/")
+	if strings.Contains(file, "/gz/") {
+		w.Header().Set("Content-Encoding", "gzip")
+	}
+	http.ServeFile(w, r, file)
 }
 
 func auth(w http.ResponseWriter, r *http.Request) int {
