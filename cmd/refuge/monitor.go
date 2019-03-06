@@ -135,7 +135,10 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 	devices := map[string]*DeviceState{}
 	for {
 		select {
-		case up := <-deviceUpdates:
+		case up, ok := <-deviceUpdates:
+			if !ok {
+				return
+			}
 			existing, ok := devices[up.Name]
 			if !ok {
 				existing = &DeviceState{}
