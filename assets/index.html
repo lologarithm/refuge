@@ -114,13 +114,17 @@
   }
 
   function onClose(event) {
-    var timeout = 1000;
+    var timeout = 0;
     if (ws) {
       console.log("Reconnecting...")
-      timeout = 0;
+      timeout = 1000;
     }
     setTimeout(function(){
-      ws = new WebSocket("ws://" + location.host + "/stream");
+      var prot = "wss://"
+      if (location.protocol != 'https:') {
+        prot = "ws://"
+      }
+      ws = new WebSocket(prot + location.host + "/stream");
       ws.addEventListener('close', onClose)
       ws.addEventListener('open', onOpen)
       ws.addEventListener('message', onMessage);
@@ -227,7 +231,7 @@
       }
       state = "Heating to " + adjusted;
     }
-    
+
     if (units == "F") {
       thdata.Temp = convertToF(thdata.Temp);
       thdata.Low = convertToF(thdata.Low);

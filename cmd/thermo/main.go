@@ -41,6 +41,7 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 	var cl climate.Controller
 	err := rpio.Open()
 	if err != nil {
+		cl = &climate.FakeController{}
 		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
 		getMot := func() bool { return true }
 		getTherm := func() (float32, float32, bool) { return 20, 20, true }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 	"gitlab.com/lologarithm/refuge/sensor"
 )
@@ -16,9 +17,9 @@ import (
 var comma = []byte{','}
 var colon = []byte{':'}
 
-func jsonSerThemo(ts *rnet.Thermostat) []byte {
-	const tmpl string = `{"Thermostat":{"Name":"%s","Addr":"%s","Fan":%d,"Low":%f,"High":%f,"Temp":%f,"Humidity":%f,"Motion":%d,"State":%d}}`
-	return []byte(fmt.Sprintf(tmpl, ts.Name, ts.Addr, ts.Fan, ts.Low, ts.High, ts.Temp, ts.Humidity, ts.Motion, ts.State))
+func jsonSerThemo(dev *refuge.Device) []byte {
+	const tmpl string = `{"Name":"%s","Addr":"%s", "Thermometer": {"Temp":%f,"Humidity":%f}, "Motion": {"Motion": %d}, "Thermostat":{"State":%d, "Target": %f, "Settings": {"Fan":%d,"Low":%f,"High":%f}}}`
+	return []byte(fmt.Sprintf(tmpl, dev.Name, dev.Addr, dev.Thermometer.Temp, dev.Thermometer.Humidity, dev.Motion.Motion, dev.Thermostat.State, dev.Thermostat.Target, dev.Thermostat.Settings.Mode, dev.Thermostat.Settings.Low, dev.Thermostat.Settings.High))
 }
 
 func runNetwork(name string, cl climate.Controller, readTherm func() (float32, float32, bool), readMotion func() bool) {
@@ -49,28 +50,34 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		os.Exit(1)
 	}
 
-	ts := rnet.Msg{Thermostat: &rnet.Thermostat{
-		// Device Config
+	ts := &refuge.Device{
 		Name: name,
 		Addr: directAddr.String(),
+		Thermostat: &refuge.Thermostat{
+			Target: 0,
+			Settings: climate.Settings{
+				// Default settings on launch
+				Mode: ds.Mode,
+				Low:  ds.Low,
+				High: ds.High,
+			},
+		},
+		Thermometer: &refuge.Thermometer{
+			Temp:     0,
+			Humidity: 0,
+		},
+		Motion: &refuge.Motion{
+			Motion: 0,
+		},
+	}
 
-		// Default settings on launch
-		Fan:  uint8(ds.Mode),
-		Low:  ds.Low,
-		High: ds.High,
-
-		// No readings yet
-		Temp:     0,
-		Humidity: 0,
-		Motion:   0,
-	}}
-
-	msg := jsonSerThemo(ts.Thermostat)
+	msg := jsonSerThemo(ts)
 	// Look for broadcasts
 	// Try to read from network.
 	v := climate.Settings{
-		High: ts.Thermostat.High,
-		Low:  ts.Thermostat.Low,
+		High: ts.Thermostat.Settings.High,
+		Low:  ts.Thermostat.Settings.Low,
+		Mode: climate.ModeAuto,
 	}
 	lr := time.Time{}
 	lastMotion := time.Now()
@@ -86,13 +93,13 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 				avgt += v.Temp
 			}
 			avgt /= float32(len(readings))
-			climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: avgt, Humi: ts.Thermostat.Humidity})
-			ts.Thermostat.Temp = avgt
-			ts.Thermostat.Humidity = readings[len(readings)-1].Humi
-			ts.Thermostat.Motion = lastMotion.Unix()
+			ts.Thermostat.Target = climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: avgt, Humi: ts.Thermometer.Humidity})
 			ts.Thermostat.State = cl.State()
+			ts.Thermometer.Temp = avgt
+			ts.Thermometer.Humidity = readings[len(readings)-1].Humi
+			ts.Motion.Motion = lastMotion.Unix()
 
-			msg = jsonSerThemo(ts.Thermostat)
+			msg = jsonSerThemo(ts)
 			direct.WriteToUDP(msg, rnet.RefugeMessages)
 			runControl = false
 		}
@@ -123,13 +130,15 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 						h, _ := strconv.ParseFloat(val, 32)
 						v.High = float32(h)
 						fmt.Printf("Assigning high to be %f\n", h)
+					} else if name == `"Mode"` {
+						// v.Mode =
 					} else {
 						fmt.Printf("Unknown key: %s\n", name)
 					}
 				}
-				ts.Thermostat.High = v.High
-				ts.Thermostat.Low = v.Low
-				// ts.Thermostat.Fan = uint8(v.Mode)
+				ts.Thermostat.Settings.High = v.High
+				ts.Thermostat.Settings.Low = v.Low
+				// ts.Thermostat.Settings.Mode = v.Mode
 				runControl = true
 			}
 		}
