@@ -804,6 +804,9 @@ function getStats(domele) {
          if (xmlhttp.status == 200) {
              var data = JSON.parse(xmlhttp.responseText);
              console.log(data);
+             if (data == null) {
+               return
+             }
              var serLook = {};
              var labels = [];
              var series = [];

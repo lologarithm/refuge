@@ -78,26 +78,13 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	done := make(chan struct{}, 1)
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
 	go func() {
-		// First load historical data
-		statFile, err := os.OpenFile("stats", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-		if err != nil {
-			log.Printf("Failed to open existing stats file: %s", err)
-		}
-		gdec := gob.NewDecoder(statFile)
-		events := []refuge.TempEvent{}
-		for {
-			var e refuge.TempEvent
-			err = gdec.Decode(&e)
-			if err != nil {
-				log.Printf("[Error] Failed to deserialize data: %s", err)
-				break
-			}
-			events = append(events, e)
-		}
+		// Load all existing stats from file.
+		events := LoadStats()
 		srv.datalock.Lock()
 		srv.eventData = events
 		srv.datalock.Unlock()
-
+		// Now open new file to write to
+		statFile := GetStatsFile()
 		enc := gob.NewEncoder(statFile)
 		for {
 			msg, ok := <-deviceStream
