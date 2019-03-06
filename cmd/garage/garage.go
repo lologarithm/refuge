@@ -9,7 +9,7 @@ import (
 	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
-	"gitlab.com/lologarithm/refuge/rnet"
+	"gitlab.com/lologarithm/refuge/refuge"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 
 func run(name string, cpin int, spin int) {
 	// Listen to network
-	stateStream := make(chan rnet.PortalState, 1)
+	stateStream := make(chan refuge.PortalState, 1)
 	stream := runNetwork(name, stateStream)
 
 	err := rpio.Open()
@@ -44,7 +44,7 @@ func run(name string, cpin int, spin int) {
 	control.Mode(rpio.Output)
 	control.High()
 
-	state := uint64(rnet.PortalStateUnknown)
+	state := uint32(refuge.PortalStateUnknown)
 
 	if spin > 0 {
 		sensor := rpio.Pin(spin)
@@ -57,16 +57,16 @@ func run(name string, cpin int, spin int) {
 				// Check to see if portal is open
 				sr := sensor.Read()
 				if sr == rpio.High {
-					if rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateClosed {
+					if refuge.PortalState(atomic.LoadUint32(&state)) != refuge.PortalStateClosed {
 						fmt.Printf("Door Closed. Updating network.\n")
-						atomic.StoreUint64(&state, uint64(rnet.PortalStateClosed))
-						stateStream <- rnet.PortalStateClosed
+						atomic.StoreUint32(&state, uint32(refuge.PortalStateClosed))
+						stateStream <- refuge.PortalStateClosed
 					}
 				} else {
-					if rnet.PortalState(atomic.LoadUint64(&state)) != rnet.PortalStateOpen {
+					if refuge.PortalState(atomic.LoadUint32(&state)) != refuge.PortalStateOpen {
 						fmt.Printf("Door Opened. Updating network.\n")
-						atomic.StoreUint64(&state, uint64(rnet.PortalStateOpen))
-						stateStream <- rnet.PortalStateOpen
+						atomic.StoreUint32(&state, uint32(refuge.PortalStateOpen))
+						stateStream <- refuge.PortalStateOpen
 					}
 				}
 				time.Sleep(time.Second)
@@ -77,7 +77,7 @@ func run(name string, cpin int, spin int) {
 	// Control the portal!
 	for v := range stream {
 		// If v != current state, trigger the garage to open
-		if v != rnet.PortalState(atomic.LoadUint64(&state)) {
+		if v != refuge.PortalState(atomic.LoadUint32(&state)) {
 			control.Low()
 			time.Sleep(time.Millisecond * 100)
 			control.High()

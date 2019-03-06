@@ -3,116 +3,138 @@ package main
 import (
 	"encoding/json"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
-	"gitlab.com/lologarithm/refuge/climate"
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
-type PageData struct {
-	*sync.Mutex // Mutex for the thermostat list
-	Thermostats map[string]rnet.Thermostat
-	Switches    map[string]rnet.Switch
-	Portals     map[string]rnet.Portal
+type userAccess struct {
+	Name   string
+	Pwd    string
+	Access int
 }
 
-// Request is sent from websocket client to server to request change to someting
-type Request struct {
-	Climate *ClimateChange
-	Switch  *rnet.Switch
-	Portal  *rnet.Portal
+// Access levels
+const (
+	AccessNone  int = 0
+	AccessRead      = 1
+	AccessWrite     = 2
+)
+
+type server struct {
+	datalock *sync.Mutex
+	Devices  map[string]*refugeDevice
+
+	clientslock   *sync.Mutex
+	clientStreams []*websocket.Conn
 }
 
-type ClimateChange struct {
-	climate.Settings
-	Name string // name of thermo to change
+// Getter functions convert names to device keys (avoiding spaces)
+
+func (srv *server) getDevice(name string) (device *refugeDevice) {
+	name = strings.Replace(name, " ", "", -1)
+	if name == "" {
+		log.Printf("[Error] Attempted to fetch an empty name string!")
+		return nil
+	}
+	srv.datalock.Lock()
+	device = srv.Devices[name]
+	srv.datalock.Unlock()
+	return device
 }
 
+type refugeDevice struct {
+	device refuge.Device
+	conn   *net.UDPConn
+	pos    Position
+}
+
+// serve creates the state object "server" and http handlers and launches the http listener.
+// Blocks on the http listener.
 func serve(host string, deviceStream chan rnet.Msg) {
 	// localTime := time.Location{}
-	pd := &PageData{
-		Mutex:       &sync.Mutex{},
-		Thermostats: make(map[string]rnet.Thermostat, 3),
-		Switches:    map[string]rnet.Switch{},
-		Portals:     map[string]rnet.Portal{},
+	srv := &server{
+		datalock:    &sync.Mutex{},
+		Devices:     map[string]*refugeDevice{},
+		clientslock: &sync.Mutex{},
 	}
 
-	updates := make(chan []byte, 10)
+	deviceUpdates := make(chan refuge.Device, 5)
+	go portalAlert(&globalConfig, deviceUpdates)
 
+	// Updater goroutine. Updates data state and pushes the new state to websocket clients
 	go func() {
 		for {
 			msg := <-deviceStream
-
-			switch {
-			case msg.Thermostat != nil:
-				td := msg.Thermostat
-				// Update our cached thermostat
-				pd.Lock()
-				pd.Thermostats[strings.Replace(td.Name, " ", "", -1)] = *td
-				pd.Unlock()
-				log.Printf("Thermo state is now: %#v", td)
-			case msg.Switch != nil:
-				fd := msg.Switch
-				// Update our cached thermostats
-				pd.Lock()
-				pd.Switches[strings.Replace(fd.Name, " ", "", -1)] = *fd
-				pd.Unlock()
-				log.Printf("Switch state is now: %#v", fd)
-			case msg.Portal != nil:
-				p := msg.Portal
-				// Update our cached thermostats
-				pd.Lock()
-				pd.Portals[strings.Replace(p.Name, " ", "", -1)] = *p
-				pd.Unlock()
-				log.Printf("Portal state is now: %#v", p)
-
+			td := msg.Device
+			existing := srv.getDevice(td.Name)
+			new := &refugeDevice{
+				device: *td,
 			}
-			// Now push the update to all connected websockets
-			d, err := json.Marshal(msg)
-			log.Printf("Writing: %v", string(d))
+			if existing != nil {
+				new.pos = existing.pos
+				if existing.device.Addr != td.Addr {
+					raddr, err := net.ResolveUDPAddr("udp", td.Addr)
+					if err != nil {
+						log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+					}
+					conn, err := net.DialUDP("udp", nil, raddr)
+					if err != nil {
+						log.Printf("Failed to open UDP: %s", err)
+						continue
+					}
+					new.conn = conn
+				} else {
+					new.conn = existing.conn
+				}
+			} else {
+				raddr, err := net.ResolveUDPAddr("udp", td.Addr)
+				if err != nil {
+					log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+				}
+				conn, err := net.DialUDP("udp", nil, raddr)
+				if err != nil {
+					log.Printf("Failed to open UDP: %s", err)
+					continue
+				}
+				new.conn = conn
+
+				fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
+				if err == nil {
+					pos := &Position{}
+					json.Unmarshal(fdata, pos)
+					new.pos = *pos
+				}
+			}
+			// Update our cached thermostat
+			srv.datalock.Lock()
+			srv.Devices[strings.Replace(td.Name, " ", "", -1)] = new
+			srv.datalock.Unlock()
+			deviceUpdates <- *td // push updates to alert system
+
+			up := &DeviceUpdate{
+				Device: &new.device,
+				Pos:    new.pos,
+			}
+			// Serialize for clients
+			d, err := json.Marshal(up)
 			if err != nil {
-				log.Printf("Failed to marshal thermal data to json: %s", err)
+				log.Printf("[Error] Failed to marshal thermal data to json: %s", err)
 			}
-			updates <- d
-		}
-	}()
 
-	http.HandleFunc("/stream", makeClientStream(updates, pd))
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Technically not sending anything over template right now...
-		tmpl, err := template.ParseFiles("./assets/index.html")
-		if err != nil {
-			log.Fatalf("unable to parse html: %s", err)
-		}
-		tmpl.Execute(w, nil)
-	})
-	log.Printf("starting webhost on: %s", host)
-	err := http.ListenAndServe(host, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-var upgrader = websocket.Upgrader{} // use default options
-
-func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
-	streamlock := sync.Mutex{}
-	clientStreams := make([]*websocket.Conn, 0, 10)
-
-	go func() {
-		// This goroutine will push updates from server to each connected client.
-		// Any socket that is dead will be removed here.
-		for v := range updates {
+			// Now push the update to all connected websockets
 			deadstreams := []int{}
-			streamlock.Lock()
-			for i, cs := range clientStreams {
-				err := cs.WriteMessage(websocket.TextMessage, v)
+			srv.clientslock.Lock()
+			for i, cs := range srv.clientStreams {
+				err := cs.WriteMessage(websocket.TextMessage, d)
 				if err != nil {
 					deadstreams = append(deadstreams, i)
 				}
@@ -120,136 +142,83 @@ func makeClientStream(updates chan []byte, pd *PageData) http.HandlerFunc {
 			// remove dead streams now
 			for i := len(deadstreams) - 1; i > -1; i-- {
 				idx := deadstreams[i]
-				clientStreams = append(clientStreams[:idx], clientStreams[idx+1:]...)
+				srv.clientStreams = append(srv.clientStreams[:idx], srv.clientStreams[idx+1:]...)
 			}
-			streamlock.Unlock()
+			srv.clientslock.Unlock()
 		}
 	}()
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		c := clientStream(w, r, pd)
-		pd.Lock()
-		for _, v := range pd.Switches {
-			c.WriteJSON(&rnet.Msg{Switch: &v})
+	// Little weather proxy/cache for the frontends
+	weather := []byte{}
+	lastWeather := time.Now()
+	var wmutex sync.RWMutex
+	http.HandleFunc("/weather", func(w http.ResponseWriter, r *http.Request) {
+		wmutex.RLock()
+		if time.Now().Sub(lastWeather) < (time.Minute*15) && len(weather) > 0 {
+			w.Write(weather)
+			wmutex.RUnlock()
+			return
 		}
-		for _, v := range pd.Thermostats {
-			c.WriteJSON(&rnet.Msg{Thermostat: &v})
+		wmutex.RUnlock()
+		wmutex.Lock()
+		defer wmutex.Unlock()
+
+		resp, err := http.Get("http://wttr.in/Bozeman?format=4")
+		if err != nil {
+			log.Printf("[Error] Failed to get weather data: %v", err)
+			w.Write(weather)
+			return
 		}
-		for _, v := range pd.Portals {
-			c.WriteJSON(&rnet.Msg{Portal: &v})
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("[Error] Failed to get weather data: %v", err)
+			w.Write(weather)
+			return
 		}
-		pd.Unlock()
-		streamlock.Lock()
-		clientStreams = append(clientStreams, c)
-		streamlock.Unlock()
+
+		resp.Body.Close()
+		weather = data
+		lastWeather = time.Now()
+		w.Write(weather)
+	})
+	http.HandleFunc("/stream", srv.clientStreamHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if auth(w, r) == AccessNone {
+			return // Don't let them access
+		}
+		// Technically not sending anything over template right now...
+		tmpl, err := template.ParseFiles("./assets/house.html")
+		if err != nil {
+			log.Fatalf("unable to parse html: %s", err)
+		}
+		tmpl.Execute(w, nil)
+	})
+
+	log.Printf("starting webhost on: %s", host)
+	err := http.ListenAndServe(host, nil)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
-func clientStream(w http.ResponseWriter, r *http.Request, pd *PageData) *websocket.Conn {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Print("upgrade:", err)
-		return nil
+func auth(w http.ResponseWriter, r *http.Request) int {
+	addr := r.RemoteAddr
+	if paddr := r.Header.Get("X-Echols-A"); paddr != "" {
+		addr = paddr
 	}
 
-	go func() {
-		for {
-			v := &Request{}
-			err := c.ReadJSON(v)
-			if err != nil {
-				log.Println("read err:", err)
-				break
-			}
-			if v.Climate != nil {
-				writeNewTherm(*v.Climate, pd)
-			}
-			if v.Switch != nil {
-				toggleSwitch(v.Switch.Name, pd)
-			}
-			if v.Portal != nil {
-				togglePortal(v.Portal.Name, pd)
-			}
-			// TODO: actually make request to remote thermostat!
+	// Allow intra-net access without auth.
+	if !strings.HasPrefix(addr, "192.168.") && !strings.HasPrefix(addr, "127.0.0.1") && !strings.HasPrefix(addr, "[::1]") {
+		log.Printf("Unauthed User: %s", addr)
+		name, pwd, _ := r.BasicAuth()
+		user, ok := globalConfig.Users[name]
+		if !ok || user.Pwd != pwd {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Refuge"`)
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("NO ACCESS."))
+			return AccessNone
 		}
-		c.Close()
-	}()
-	return c
-}
-
-func togglePortal(name string, pd *PageData) {
-	var addr string
-	state := rnet.PortalStateOpen
-	name = strings.Replace(name, " ", "", -1)
-
-	pd.Lock()
-	addr = pd.Portals[name].Addr
-	if pd.Portals[name].State == rnet.PortalStateOpen {
-		state = rnet.PortalStateClosed
+		return user.Access
 	}
-	pd.Unlock()
-
-	raddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
-	}
-
-	msg, _ := json.Marshal(rnet.Portal{Name: name, State: state})
-	log.Printf("Sending Portal Update to: '%s' to (%s)'%s'", string(msg), addr, raddr)
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		log.Printf("Failed to open UDP: %s", err)
-		return
-	}
-	conn.Write(msg)
-	conn.Close()
-}
-
-func toggleSwitch(name string, pd *PageData) {
-	var addr string
-	var state bool
-	name = strings.Replace(name, " ", "", -1)
-	pd.Lock()
-	addr = pd.Switches[name].Addr
-	state = pd.Switches[name].On
-	pd.Unlock()
-
-	raddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
-	}
-
-	msg, _ := json.Marshal(rnet.Switch{Name: name, On: !state})
-	log.Printf("Sending: '%s' to (%s)'%s'", string(msg), addr, raddr)
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		log.Printf("Failed to open UDP: %s", err)
-		return
-	}
-	conn.Write(msg)
-	conn.Close()
-}
-
-func writeNewTherm(c ClimateChange, pd *PageData) {
-	c.Name = strings.Replace(c.Name, " ", "", -1)
-	log.Printf("Climate: %#v", c)
-	var addr string
-
-	pd.Lock()
-	addr = pd.Thermostats[c.Name].Addr
-	pd.Unlock()
-
-	raddr, err := net.ResolveUDPAddr("udp", addr)
-	if err != nil {
-		log.Fatalf("failed to resolve thermo broadcast address: %s", err)
-	}
-
-	msg, _ := json.Marshal(&c.Settings)
-	log.Printf("Sending: '%s' to (%s)'%s'", string(msg), addr, raddr)
-	conn, err := net.DialUDP("udp", nil, raddr)
-	if err != nil {
-		log.Printf("Failed to open UDP: %s", err)
-		return
-	}
-	conn.Write(msg)
-	conn.Close()
+	return AccessWrite
 }
