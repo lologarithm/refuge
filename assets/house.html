@@ -1,10 +1,9 @@
 <html>
   <head>
-    <link rel="stylesheet" href="assets/gz/chartist.min.css">
     <style>
       @font-face {
        font-family: "Fira Sans";
-       src: url(assets/fonts/FiraSans-Regular.woff);
+       src: url(assets/fonts/Fira-Min.woff2);
      }
       #interaction {
         overflow: scroll;
@@ -74,8 +73,7 @@
         <p id="dt">Date</p>
         <p id="weather">Weather</p>
       </div>
-      <div style="position: absolute; top: 0; right: 0; width: 50%; height: 200px; background-color:white;" id="graphs" class="ct-chart ct-perfect-fourth">
-      </div>
+      <div style="position: absolute; top: 0; right: 0; width: 50%; height: 200px; background-color:white;" id="graphs"><canvas> style="position:absolute"</canvas></div>
     </div>
     <div id="interaction" style="">
       <!--  Floor 1-->
@@ -231,6 +229,5 @@
         <p id="debugger"></p>
     </div>
   </body>
-  <script src="assets/gz/chartist.min.js"></script>
   <script src="assets/house.js"></script>
 </html>

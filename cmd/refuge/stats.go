@@ -19,6 +19,7 @@ func LoadStats() []refuge.TempEvent {
 		os.Mkdir("stats", os.ModePerm)
 		return nil
 	}
+	gob.Register(refuge.TempEvent{})
 
 	// Load historical data
 	events := []refuge.TempEvent{}
@@ -32,7 +33,6 @@ func LoadStats() []refuge.TempEvent {
 			log.Printf("Failed to open existing stats file: %s", err)
 			continue
 		}
-		gob.Register(refuge.TempEvent{})
 		for gdec := gob.NewDecoder(file); err == nil; {
 			var e refuge.TempEvent
 			err = gdec.Decode(&e)

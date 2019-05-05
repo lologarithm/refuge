@@ -51,29 +51,32 @@ var graphs = document.getElementById("graphs");
 var dt = document.getElementById("dt");
 var weather = document.getElementById("weather");
 
+var gcanvas = graphs.childNodes[0];
+
 var cmaxed = false;
 graphs.addEventListener("click", function(){
   if (!cmaxed) {
-    graphs.style.height = "100vh";
-    graphs.style.width = "100vw";
+    graphs.style.height = "95vh";
+    graphs.style.width = "95vw";
     cmaxed = true;
   } else {
     graphs.style.height = "200px";
     graphs.style.width = "50%";
     cmaxed = false;
   }
-  getStats(graphs);
+  getStats(gcanvas);
 });
 var doGraphs = function() {
   window.setTimeout(doGraphs, 60000);
-  getStats(graphs);
+  getStats(gcanvas);
 }
 var doTime = function() {
   window.setTimeout(doTime, 1000);
   dt.innerText = getTime();
 }
 var doWeather = function() {
-  window.setTimeout(doWeather, 60000);
+  window.setTimeout(doWeather, 30000);
+  console.log("Doing the weather thing!");
   getWeather(weather);
 }
 doGraphs();
@@ -350,6 +353,57 @@ function animateThermoOpen(device) {
   }
   device.thermoControl.childNodes[3].setAttribute("d", "");
   animateAngle(0);
+}
+
+// status enum
+var thermStatus = {
+  committed: 0,
+  setting: 1,
+  pushed: 2,
+};
+// drawThermoLines will draw the lines and highlighted area for the radial thermostat.
+// This will toggle the color of the range based on status (editing, pushed to server, or committed)
+function drawThermoLines(thermoControl, high, low, temp, status) {
+  // var hV = (high+low)/2;
+  var hV = high;
+  var lV = low;
+  if (units == "F") {
+    hV = convertToF(hV);
+    lV = convertToF(lV);
+  }
+
+  var ca = Math.PI/2 - (((high-10)/30) * Math.PI);
+  var x = Math.cos(ca);
+  var y = Math.sin(ca);
+  thermoControl.childNodes[5].setAttribute("d", "M " + (x * 100) + " " + (100+(y*100)) + "L " + (x*50) + " " + (100+(y*50)));
+  thermoControl.childNodes[13].textContent = (hV).toFixed(0);
+  thermoControl.childNodes[13].setAttribute("x", x*120);
+  thermoControl.childNodes[13].setAttribute("y", 100+(y*120));
+
+  var ca = Math.PI/2 - (((low-10)/30) * Math.PI);
+  var xl = Math.cos(ca);
+  var yl = Math.sin(ca);
+  thermoControl.childNodes[7].setAttribute("d", "M " + (xl * 100) + " " + (100+(yl*100)) + "L " + (xl*50) + " " + (100+(yl*50)));
+  thermoControl.childNodes[15].textContent = (lV).toFixed(0);
+  thermoControl.childNodes[15].setAttribute("x", xl*120);
+  thermoControl.childNodes[15].setAttribute("y", 100+(yl*120));
+
+  var ca = Math.PI/2 - (((temp-10)/30) * Math.PI);
+  var xt = Math.cos(ca);
+  var yt = Math.sin(ca);
+  thermoControl.childNodes[9].setAttribute("d", "M " + (xt * 110) + " " + (100+(yt*110)) + "L " + (xt*40) + " " + (100+(yt*40)));
+  // Highlighted area
+  thermoControl.childNodes[11].setAttribute("d", "M " + x*50 + " " + (100+(y*50)) + " L " + x*100 + " " + (100+(y*100)) + " A 100 100 0 0 1 " + (xl * 100) + " " + (100+(yl*100)) + " L " + (xl*50) + " " + (100+(yl*50)) + " A 50 50 0 0 0 "  + x*50 + " " + (100+(y*50)));
+  if (status == thermStatus.pushed) {
+    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.5);
+    thermoControl.childNodes[11].setAttribute("fill", "black");
+  } else if (status == thermStatus.setting) {
+    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.2);
+    thermoControl.childNodes[11].setAttribute("fill", "yellow");
+  } else {
+    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.3);
+    thermoControl.childNodes[11].setAttribute("fill", "yellow");
+  }
 }
 
 window.addEventListener("touchmove", function(e){
@@ -694,57 +748,6 @@ function addEditorControls(device) {
   }, false);
 }
 
-// status enum
-var thermStatus = {
-  committed: 0,
-  setting: 1,
-  pushed: 2,
-};
-// drawThermoLines will draw the lines and highlighted area for the radial thermostat.
-// This will toggle the color of the range based on status (editing, pushed to server, or committed)
-function drawThermoLines(thermoControl, high, low, temp, status) {
-  // var hV = (high+low)/2;
-  var hV = high;
-  var lV = low;
-  if (units == "F") {
-    hV = convertToF(hV);
-    lV = convertToF(lV);
-  }
-
-  var ca = Math.PI/2 - (((high-10)/30) * Math.PI);
-  var x = Math.cos(ca);
-  var y = Math.sin(ca);
-  thermoControl.childNodes[5].setAttribute("d", "M " + (x * 100) + " " + (100+(y*100)) + "L " + (x*50) + " " + (100+(y*50)));
-  thermoControl.childNodes[13].textContent = (hV).toFixed(0);
-  thermoControl.childNodes[13].setAttribute("x", x*120);
-  thermoControl.childNodes[13].setAttribute("y", 100+(y*120));
-
-  var ca = Math.PI/2 - (((low-10)/30) * Math.PI);
-  var xl = Math.cos(ca);
-  var yl = Math.sin(ca);
-  thermoControl.childNodes[7].setAttribute("d", "M " + (xl * 100) + " " + (100+(yl*100)) + "L " + (xl*50) + " " + (100+(yl*50)));
-  thermoControl.childNodes[15].textContent = (lV).toFixed(0);
-  thermoControl.childNodes[15].setAttribute("x", xl*120);
-  thermoControl.childNodes[15].setAttribute("y", 100+(yl*120));
-
-  var ca = Math.PI/2 - (((temp-10)/30) * Math.PI);
-  var xt = Math.cos(ca);
-  var yt = Math.sin(ca);
-  thermoControl.childNodes[9].setAttribute("d", "M " + (xt * 110) + " " + (100+(yt*110)) + "L " + (xt*40) + " " + (100+(yt*40)));
-  // Highlighted area
-  thermoControl.childNodes[11].setAttribute("d", "M " + x*50 + " " + (100+(y*50)) + " L " + x*100 + " " + (100+(y*100)) + " A 100 100 0 0 1 " + (xl * 100) + " " + (100+(yl*100)) + " L " + (xl*50) + " " + (100+(yl*50)) + " A 50 50 0 0 0 "  + x*50 + " " + (100+(y*50)));
-  if (status == thermStatus.pushed) {
-    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.5);
-    thermoControl.childNodes[11].setAttribute("fill", "black");
-  } else if (status == thermStatus.setting) {
-    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.2);
-    thermoControl.childNodes[11].setAttribute("fill", "yellow");
-  } else {
-    thermoControl.childNodes[11].setAttribute("fill-opacity", 0.3);
-    thermoControl.childNodes[11].setAttribute("fill", "yellow");
-  }
-}
-
 // toggleUnits changes the local storage temp units to be used (C/F)
 function toggleUnits() {
   var toggle = document.getElementById("unittoggle");
@@ -797,53 +800,89 @@ function getWeather(domele) {
   xmlhttp.send();
 }
 
-function getStats(domele) {
-  var xmlhttp = new XMLHttpRequest();
-  xmlhttp.onreadystatechange = function() {
-      if (xmlhttp.readyState == XMLHttpRequest.DONE) {   // XMLHttpRequest.DONE == 4
-         if (xmlhttp.status == 200) {
-             var data = JSON.parse(xmlhttp.responseText);
-             console.log(data);
-             if (data == null) {
-               return
-             }
-             var serLook = {};
-             var labels = [];
-             var series = [];
-             for (var i = 0; i < data.length; i++) {
-               var name = data[i].Name;
-               var lu = serLook[name];
-               if (lu == undefined) {
-                 lu = labels.length;
-                 serLook[name] = lu;
-                 labels.push(name);
-                 series.push([]);
-               }
-               series[lu].push({x: Date.parse(data[i].Time), y: data[i].Temp});
-             }
-
-             // We are setting a few options for our chart and override the defaults
-             var options = {
-               high: 28,
-               low: 16,
-               axisX: {
-                 showGrid: false,
-                 showLabel: true
-               },
-               axisY: {
-               }
-             };
-             var c = new Chartist.Line('#graphs', {
-               "labels": [],
-               "series": series,
-             }, options);
-         } else {
-           console.log("Failed to fetch weather: ", xmlhttp);
-         }
-      }
-  };
-  xmlhttp.open("GET", "/stats", true);
-  xmlhttp.send();
+function getStats(gcanvas) {
+  // var xmlhttp = new XMLHttpRequest();
+  // xmlhttp.onreadystatechange = function() {
+  //     if (xmlhttp.readyState == XMLHttpRequest.DONE) {   // XMLHttpRequest.DONE == 4
+  //        if (xmlhttp.status == 200) {
+  //            var data = JSON.parse(xmlhttp.responseText);
+  //            console.log(data);
+  //            if (data == null) {
+  //              return
+  //            }
+  //            var serLook = {};
+  //            var labels = [];
+  //            var series = [];
+  //            var barSer = {
+  //              label: "HVAC",
+  //              data: [],
+  //              type: "bar",
+  //              borderColor: "#EEEEEE",
+  //              backgroundColor: "#FF0000",
+  //              borderWidth: 0
+  //            };
+  //            for (var i = 0; i < data.length; i++) {
+  //              var name = data[i].Name;
+  //              var lu = serLook[name];
+  //              if (lu == undefined) {
+  //                lu = series.length;
+  //                serLook[name] = lu;
+  //                var color = Math.floor((Math.abs(Math.sin(i+100) * 16777215)) % 16777215).toString(16);
+  //                series.push({
+  //                  label: name,
+  //                  fill: false,
+  //                  borderColor: "#" + color,
+  //                  data: [],
+  //                });
+  //              }
+  //              if (labels.length <= series[lu].data.length) {
+  //                labels.push(data[i].Time);
+  //              }
+  //              if (lu == 0) {
+  //                if (data[i].State == 1) {
+  //                  barSer.data.push({x: new Date(data[i].Time), y: 30});
+  //                } else if (data[i].State == 3) {
+  //                  barSer.data.push({x: new Date(data[i].Time), y: 30});
+  //                } else {
+  //                  barSer.data.push({x: new Date(data[i].Time), y: 0});
+  //                }
+  //              }
+  //              series[lu].data.push({x: new Date(data[i].Time), y: data[i].Temp});
+  //            }
+  //            series.push(barSer);
+  //            console.log("series", series);
+  //            var ctx = gcanvas.getContext('2d');
+  //            var chart = new Chart(ctx, {
+  //                type: 'line',
+  //                data: {
+  //                  labels: labels,
+  //                  datasets: series,
+  //                },
+  //                options: {
+  //                  scales: {
+  //                    xAxes: [{
+  //                      type: "time",
+  //                      time: {
+  //                        unit: "day",
+  //                        displayFormats: {
+  //                          "day": "YYYY-MM-DD"
+  //                        }
+  //                      }
+  //                    }],
+  //                  },
+  //                  // Boolean - whether or not the chart should be responsive and resize when the browser does.
+  //                  responsive: true,
+  //                  // Boolean - whether to maintain the starting aspect ratio or not when responsive, if set to false, will take up entire container
+  //                  maintainAspectRatio: false
+  //                }
+  //            });
+  //        } else {
+  //          console.log("Failed to fetch weather: ", xmlhttp);
+  //        }
+  //     }
+  // };
+  // xmlhttp.open("GET", "/stats", true);
+  // xmlhttp.send();
 }
 
 function getTime() {
