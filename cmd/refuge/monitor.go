@@ -92,7 +92,7 @@ func monitor(test bool) chan rnet.Msg {
 			case reading.Switch != nil:
 				// log.Printf("New Switch: %#v", reading.Switch)
 			case reading.Portal != nil:
-				// log.Printf("New Portal: %#v", reading.Portal)
+				log.Printf("Portal Update: %#v", reading.Portal)
 			default:
 				log.Printf("Unknown message: %#v", reading)
 				continue
@@ -128,7 +128,8 @@ type DeviceState struct {
 	numEmails  int
 }
 
-const alertTime = time.Minute * 30
+const openAlertTime = time.Minute * 30
+const upAlertTime = time.Minute * 5
 
 func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 	// Portal watcher
@@ -156,20 +157,39 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 			} else if up.Portal.State != refuge.PortalStateOpen {
 				// if not open now, keep updating.
 				existing.lastOpened = time.Now()
+				existing.numEmails = 0 // reset emails sent
 			}
 			existing.Portal = up.Portal
 			existing.lastUpdate = time.Now()
-		case <-time.After(time.Minute * 5):
-			ping()
+		case <-time.After(time.Second * 5):
+			break
 		}
 
+		pinged := false
 		for _, p := range devices {
 			upDiff := time.Now().Sub(p.lastUpdate)
 			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)
+
+			if upDiff > time.Minute*2 { // if we haven't heard from device in >2min, ping for an update.
+				// If we haven't heard in 5min... something is prob wrong.
+				if upDiff > upAlertTime && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
+					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
+					sendMail(c.Mailgun, "Refuge Device", "Device "+p.Name+" has not responded in over 5 minutes.")
+					p.numEmails++
+					p.lastEmail = time.Now()
+				}
+				if !pinged {
+					ping()
+					pinged = true
+				}
+				// If we haven't heard from a device we dont know its status, skip to next device
+				continue
+			}
+
 			// If our garage isn't working correctly or left open, send an alert
 			// But only email once per hour (backing off one hour extra each time)
-			if (upDiff > alertTime || opDiff > alertTime) && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
+			if opDiff > openAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
 				log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
 				p.lastEmail = time.Now()
 				p.numEmails++

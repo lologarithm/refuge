@@ -19,6 +19,16 @@ const (
 	PortalStateOpen
 )
 
+func (ps PortalState) String() string {
+	if ps == PortalStateOpen {
+		return "open"
+	}
+	if ps == PortalStateClosed {
+		return "closed"
+	}
+	return "unknown"
+}
+
 // Thermostat is a device that controls temp by setting acceptable temp ranges.
 // Technically doesn't work without a Thermometer but they are separate devices
 // so that other things can have a thermometer without a thermostat.
