@@ -139,18 +139,19 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device) {
 			if !ok {
 				return
 			}
+			// For now only do alerts on portals
+			if up.Portal == nil {
+				break
+			}
 			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &DeviceState{}
+				existing = &DeviceState{Device: refuge.Device{Portal: &refuge.Portal{}}}
 				devices[up.Name] = existing
 			}
 			port := existing.Portal
-			// For now only do alerts on portals
-			if port == nil {
-				continue
-			}
 			if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
 				// If just opened, set the time.
+				log.Printf("Portal %s is open... starting timer for alert.", up.Name)
 				existing.lastOpened = time.Now()
 			} else if up.Portal.State != refuge.PortalStateOpen {
 				// if not open now, keep updating.
