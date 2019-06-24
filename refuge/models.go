@@ -1,9 +1,5 @@
 package refuge
 
-import (
-	"gitlab.com/lologarithm/refuge/climate"
-)
-
 // Portal represents any door/window that can be monitored or open/closed
 type Portal struct {
 	State PortalState // Can signal current state or intended state. Unknown, Closed, Open
@@ -33,9 +29,9 @@ func (ps PortalState) String() string {
 // Technically doesn't work without a Thermometer but they are separate devices
 // so that other things can have a thermometer without a thermostat.
 type Thermostat struct {
-	State    climate.ControlState // Active or Not
-	Target   float32              // Target for heating/cooling
-	Settings climate.Settings
+	State    ControlState // Active or Not
+	Target   float32      // Target for heating/cooling
+	Settings Settings
 }
 
 // Thermometer is a thermometer reading.
@@ -68,3 +64,27 @@ type Device struct {
 	Portal      *Portal
 	Motion      *Motion
 }
+
+type Settings struct {
+	Low  float32 // low temp in C
+	High float32 // high temp in C
+	Mode Mode
+}
+
+type ControlState byte
+
+const (
+	StateIdle ControlState = iota
+	StateCooling
+	StateFanning
+	StateHeating
+)
+
+type Mode byte
+
+const (
+	ModeUnset Mode = iota
+	ModeOff
+	ModeAuto // Manage temp range
+	ModeFan  // Just run fan
+)

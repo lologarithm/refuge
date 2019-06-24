@@ -5,30 +5,16 @@ import (
 	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
+	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/sensor"
 )
-
-type Mode byte
-
-const (
-	ModeUnset Mode = iota
-	ModeOff
-	ModeAuto // Manage temp range
-	ModeFan  // Just run fan
-)
-
-type Settings struct {
-	Low  float32 // low temp in C
-	High float32 // high temp in C
-	Mode Mode
-}
 
 type Controller interface {
 	Heat()
 	Cool()
 	Fan()
 	Off()
-	State() ControlState
+	State() refuge.ControlState
 }
 
 type RealController struct {
@@ -36,7 +22,7 @@ type RealController struct {
 	CoolP rpio.Pin
 	HeatP rpio.Pin
 
-	state ControlState
+	state refuge.ControlState
 }
 
 func NewController(h, c, f int) *RealController {
@@ -63,7 +49,7 @@ func (rc *RealController) Heat() {
 	rc.FanP.Low()
 	rc.HeatP.Low()
 
-	rc.state = StateHeating
+	rc.state = refuge.StateHeating
 }
 
 func (rc *RealController) Cool() {
@@ -72,7 +58,7 @@ func (rc *RealController) Cool() {
 	rc.FanP.Low()
 	rc.CoolP.Low()
 
-	rc.state = StateCooling
+	rc.state = refuge.StateCooling
 }
 
 func (rc *RealController) Fan() {
@@ -81,7 +67,7 @@ func (rc *RealController) Fan() {
 	rc.CoolP.High()
 	rc.HeatP.High()
 
-	rc.state = StateFanning
+	rc.state = refuge.StateFanning
 }
 
 func (rc *RealController) Off() {
@@ -89,10 +75,10 @@ func (rc *RealController) Off() {
 	rc.CoolP.High()
 	rc.HeatP.High()
 
-	rc.state = StateIdle
+	rc.state = refuge.StateIdle
 }
 
-func (rc RealController) State() ControlState {
+func (rc RealController) State() refuge.ControlState {
 	return rc.state
 }
 
@@ -100,24 +86,15 @@ func (rc RealController) State() ControlState {
 type FakeController struct {
 }
 
-func (fc FakeController) Heat()               {}
-func (fc FakeController) Cool()               {}
-func (fc FakeController) Fan()                {}
-func (fc FakeController) Off()                {}
-func (fc FakeController) State() ControlState { return 0 }
-
-type ControlState byte
-
-const (
-	StateIdle ControlState = iota
-	StateCooling
-	StateFanning
-	StateHeating
-)
+func (fc FakeController) Heat()                      {}
+func (fc FakeController) Cool()                      {}
+func (fc FakeController) Fan()                       {}
+func (fc FakeController) Off()                       {}
+func (fc FakeController) State() refuge.ControlState { return 0 }
 
 // ControlLoop accepts a stream of input to control heating/cooling
-func ControlLoop(controller Controller, setStream chan Settings, thermStream chan sensor.ThermalReading, motionStream chan int64) {
-	s := Settings{}
+func ControlLoop(controller Controller, setStream chan refuge.Settings, thermStream chan sensor.ThermalReading, motionStream chan int64) {
+	s := refuge.Settings{}
 	// Run the climate control system here.
 	lastTherm := <-thermStream
 	lastMotion := time.Now()
@@ -135,11 +112,11 @@ func ControlLoop(controller Controller, setStream chan Settings, thermStream cha
 			fmt.Printf("Climate Loop: changing settings: %#v\n", set)
 			s.High = set.High
 			s.Low = set.Low
-			if set.Mode != ModeUnset {
+			if set.Mode != refuge.ModeUnset {
 				s.Mode = set.Mode
 			}
 		}
-		if s.High == 0 || s.Low == 0 || s.Mode == ModeUnset {
+		if s.High == 0 || s.Low == 0 || s.Mode == refuge.ModeUnset {
 			// Exit!
 			fmt.Printf("No valid high/low temp specified. Control loop exiting.\n")
 			return
@@ -148,7 +125,7 @@ func ControlLoop(controller Controller, setStream chan Settings, thermStream cha
 }
 
 // Control accepts current state and decides what to change
-func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.ThermalReading) float32 {
+func Control(controller Controller, s refuge.Settings, lastMotion time.Time, tr sensor.ThermalReading) float32 {
 	fmt.Printf("Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
 	tempOffset := float32(0)
 
@@ -157,11 +134,11 @@ func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.
 		tempOffset = 2
 	}
 	state := controller.State()
-	if state == StateHeating || state == StateCooling {
+	if state == refuge.StateHeating || state == refuge.StateCooling {
 		tempOffset -= 1.5 // We want to go a little over the temp we are targetting.
 	}
 	if tr.Temp > s.High+tempOffset {
-		if state != StateCooling {
+		if state != refuge.StateCooling {
 			fmt.Printf("Climate Loop: Activating cooling...\n")
 			controller.Cool()
 		} else {
@@ -169,14 +146,14 @@ func Control(controller Controller, s Settings, lastMotion time.Time, tr sensor.
 		}
 		return s.High + tempOffset
 	} else if tr.Temp < s.Low-tempOffset {
-		if state != StateHeating {
+		if state != refuge.StateHeating {
 			fmt.Printf("Climate Loop: Activating heating...\n")
 			controller.Heat()
 		} else {
 			fmt.Printf("Climate Loop: still heating...\n")
 		}
 		return s.Low - tempOffset
-	} else if state != StateIdle {
+	} else if state != refuge.StateIdle {
 		// First time after reaching goal temp, disable climate control
 		fmt.Printf("Climate Loop: Disabling all climate controls...\n")
 		controller.Off()

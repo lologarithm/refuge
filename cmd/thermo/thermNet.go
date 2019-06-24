@@ -23,10 +23,10 @@ func jsonSerThemo(dev *refuge.Device) []byte {
 }
 
 func runNetwork(name string, cl climate.Controller, readTherm func() (float32, float32, bool), readMotion func() bool) {
-	ds := climate.Settings{
+	ds := refuge.Settings{
 		Low:  19,
 		High: 26.66,
-		Mode: climate.ModeAuto,
+		Mode: refuge.ModeAuto,
 	} // Shove in first desired state
 	addrs := rnet.MyIPs()
 
@@ -55,7 +55,7 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		Addr: directAddr.String(),
 		Thermostat: &refuge.Thermostat{
 			Target: 0,
-			Settings: climate.Settings{
+			Settings: refuge.Settings{
 				// Default settings on launch
 				Mode: ds.Mode,
 				Low:  ds.Low,
@@ -74,10 +74,10 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 	msg := jsonSerThemo(ts)
 	// Look for broadcasts
 	// Try to read from network.
-	v := climate.Settings{
+	v := refuge.Settings{
 		High: ts.Thermostat.Settings.High,
 		Low:  ts.Thermostat.Settings.Low,
-		Mode: climate.ModeAuto,
+		Mode: refuge.ModeAuto,
 	}
 	lr := time.Time{}
 	lastMotion := time.Now()

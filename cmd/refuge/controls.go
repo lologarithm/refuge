@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 
-	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/refuge"
 )
 
@@ -38,7 +37,7 @@ func togglePortal(newstate int, conn *net.UDPConn) {
 	conn.Write(msg)
 }
 
-func setTherm(c climate.Settings, conn *net.UDPConn) {
+func setTherm(c refuge.Settings, conn *net.UDPConn) {
 	msg, err := json.Marshal(c)
 	if err != nil {
 		log.Printf("[Error] Failed to write json climate update: %s", err)
