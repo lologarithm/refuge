@@ -8,18 +8,12 @@ import (
 	"gitlab.com/lologarithm/refuge/refuge"
 )
 
-// RefugeMessages is the multicast address used by devices to communicate to web server.
-var RefugeMessages *net.UDPAddr
-var refugeMessages = "225.1.2.3:8765"
-
 // RefugeDiscovery is the multicast address used by webserver to discover devices.
 var RefugeDiscovery *net.UDPAddr
-var refugeDiscovery = "225.1.2.3:8766"
+var refugeDiscovery = "225.1.2.3:8767"
 
 func init() {
 	var err error
-	RefugeMessages, err = net.ResolveUDPAddr("udp", refugeMessages)
-	failErr("resolving refuge udp addr", err)
 	RefugeDiscovery, err = net.ResolveUDPAddr("udp", refugeDiscovery)
 	failErr("resolving refuge udp addr", err)
 }

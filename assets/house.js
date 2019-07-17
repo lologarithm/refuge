@@ -598,6 +598,22 @@ function thermoInteraction(device) {
   device.thermoControl.addEventListener("touchcancel", function(e){
     console.log("Cancelled:", e.changedTouches);
   });
+  device.thermoControl.addEventListener("wheel", function(e) {
+    if (e.deltaY > 0) {
+      spread--;
+    } else {
+      spread++;
+    }
+    if (spread > 15) {
+      spread = 15;
+    } else if (spread < 5) {
+      spread = 5;
+    }
+    var l = mid - spread/2;
+    var h = mid + spread/2;
+    drawThermoLines(device.thermoControl, h, l, device.msg.Thermometer.Temp, thermStatus.setting);
+    sendThermoUpdate(mid);
+  });
 }
 
 // getRoomPos returns the SVG coords of the room (offset from the floor)
@@ -763,6 +779,8 @@ function toggleUnits() {
     toggle.innerText = "Fahrenheit";
     units = "F";
   }
+
+  // TODO: foreach device, call update with last network msg
 }
 
 // getUnits will return the currently stored units (C/F). Defaults to C
