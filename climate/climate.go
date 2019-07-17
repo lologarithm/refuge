@@ -127,16 +127,25 @@ func ControlLoop(controller Controller, setStream chan refuge.Settings, thermStr
 // Control accepts current state and decides what to change
 func Control(controller Controller, s refuge.Settings, lastMotion time.Time, tr sensor.ThermalReading) float32 {
 	fmt.Printf("Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
-	tempOffset := float32(0)
+	state := controller.State()
 
+	if s.Mode == refuge.ModeOff {
+		if state != refuge.StateIdle {
+			fmt.Println("Thermostat was manually disabled.")
+			controller.Off()
+		}
+		return 0
+	}
+
+	tempOffset := float32(0)
 	if time.Now().Sub(lastMotion) > time.Minute*30 {
 		fmt.Printf("Climate Loop: Its been over 30 min since motion was seen, increasing temp range by 2C\n")
 		tempOffset = 2
 	}
-	state := controller.State()
 	if state == refuge.StateHeating || state == refuge.StateCooling {
 		tempOffset -= 1.5 // We want to go a little over the temp we are targetting.
 	}
+
 	if tr.Temp > s.High+tempOffset {
 		if state != refuge.StateCooling {
 			fmt.Printf("Climate Loop: Activating cooling...\n")
@@ -154,9 +163,13 @@ func Control(controller Controller, s refuge.Settings, lastMotion time.Time, tr 
 		}
 		return s.Low - tempOffset
 	} else if state != refuge.StateIdle {
-		// First time after reaching goal temp, disable climate control
-		fmt.Printf("Climate Loop: Disabling all climate controls...\n")
-		controller.Off()
+		if s.Mode == refuge.ModeAuto {
+			// First time after reaching goal temp, disable climate control
+			fmt.Printf("Climate Loop: Disabling all climate controls...\n")
+			controller.Off()
+		}
+	} else if s.Mode == refuge.ModeFan && state == refuge.StateIdle {
+		controller.Fan()
 	}
 
 	return 0

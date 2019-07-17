@@ -3,9 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
-	"sync/atomic"
 	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
@@ -27,60 +25,64 @@ func main() {
 }
 
 func run(name string, cpin int, spin int) {
-	// Listen to network
-	stateStream := make(chan refuge.PortalState, 1)
-	stream := runNetwork(name, stateStream)
+	poll := setupNetwork(name)
+
+	state := refuge.PortalStateUnknown
 
 	err := rpio.Open()
 	if err != nil {
-		log.Printf("Unable to use real pins...")
-		for v := range stream {
-			log.Printf("Setting fake switch to: %v", v)
+		print("Unable to use real pins...\n")
+		for {
+			newState := poll(state)
+			if newState != refuge.PortalStateUnknown && state != newState {
+				fmt.Printf("State is now: %d\n", newState)
+				state = newState
+			}
+			time.Sleep(time.Millisecond * 5)
 		}
 	}
+	sensor := rpio.Pin(spin)
+	sensor.PullDown()       // Make sure default state is low
+	sensor.Mode(rpio.Input) // Now read for state to go high
 
 	// Set switch to off
 	control := rpio.Pin(cpin)
 	control.Mode(rpio.Output)
 	control.High()
 
-	state := uint32(refuge.PortalStateUnknown)
+	lastRead := time.Now().Unix()
+	readDelay := int64(2) // seconds
+	for {
+		// 1. try network loop
+		requested := poll(state)
 
-	if spin > 0 {
-		sensor := rpio.Pin(spin)
-		sensor.PullDown()       // Make sure default state is low
-		sensor.Mode(rpio.Input) // Now read for state to go high
-
-		// Sensor listener stream
-		go func() {
-			for {
-				// Check to see if portal is open
-				sr := sensor.Read()
-				if sr == rpio.High {
-					if refuge.PortalState(atomic.LoadUint32(&state)) != refuge.PortalStateClosed {
-						fmt.Printf("Door Closed. Updating network.\n")
-						atomic.StoreUint32(&state, uint32(refuge.PortalStateClosed))
-						stateStream <- refuge.PortalStateClosed
-					}
-				} else {
-					if refuge.PortalState(atomic.LoadUint32(&state)) != refuge.PortalStateOpen {
-						fmt.Printf("Door Opened. Updating network.\n")
-						atomic.StoreUint32(&state, uint32(refuge.PortalStateOpen))
-						stateStream <- refuge.PortalStateOpen
-					}
+		// 2. check sensors every "readDelay" seconds
+		if spin > 0 && time.Now().Unix()-lastRead > readDelay {
+			// Check to see if portal is open
+			sr := sensor.Read()
+			if sr == rpio.High {
+				if state != refuge.PortalStateClosed {
+					fmt.Printf("Door State: Closed\n")
+					state = refuge.PortalStateClosed
 				}
-				time.Sleep(time.Second)
+			} else {
+				if state != refuge.PortalStateOpen {
+					fmt.Printf("Door State: Open\n")
+					state = refuge.PortalStateOpen
+				}
 			}
-		}()
-	}
+			lastRead = time.Now().Unix()
+		}
 
-	// Control the portal!
-	for v := range stream {
+		// 3. Update state?
 		// If v != current state, trigger the garage to open
-		if v != refuge.PortalState(atomic.LoadUint32(&state)) {
+		if requested != refuge.PortalStateUnknown && requested != state {
 			control.Low()
 			time.Sleep(time.Millisecond * 100)
 			control.High()
+			lastRead = time.Now().Unix() - readDelay + 1 // force a re-read in 1 second
+		} else {
+			time.Sleep(time.Millisecond * 200)
 		}
 	}
 }

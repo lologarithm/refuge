@@ -2,7 +2,7 @@ module gitlab.com/lologarithm/refuge
 
 require (
 	github.com/gorilla/websocket v1.2.0
-	github.com/lologarithm/netgen v0.0.0-20181021032629-b4edc5ad4806
+	github.com/lologarithm/netgen v1.0.1
 	github.com/mailgun/mailgun-go v2.0.0+incompatible
 	github.com/mailgun/mailgun-go/v3 v3.3.0
 	github.com/stianeikeland/go-rpio v4.2.0+incompatible

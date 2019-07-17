@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	rpio "github.com/stianeikeland/go-rpio"
 )
@@ -24,13 +25,17 @@ func main() {
 
 func run(name string, cpin int) {
 	// Listen to network
-	stream := runNetwork(name)
+	poll := setupNetwork(name)
 
 	err := rpio.Open()
 	if err != nil {
 		log.Printf("Unable to use real pins...")
-		for v := range stream {
-			log.Printf("Setting fake switch to: %v", v)
+		for {
+			v := poll()
+			if v > 0 {
+				log.Printf("Setting fake switch to: %v", v)
+			}
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 	// Set switch to off
@@ -38,12 +43,13 @@ func run(name string, cpin int) {
 	control.Mode(rpio.Output)
 	control.High()
 
-	// Control the switch!
-	for v := range stream {
-		if v {
+	for {
+		v := poll()
+		if v == 1 {
 			control.Low()
-		} else {
+		} else if v == 2 {
 			control.High()
 		}
+		time.Sleep(time.Millisecond * 200)
 	}
 }

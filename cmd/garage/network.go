@@ -1,93 +1,78 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
+	"fmt"
 	"net"
-	"sync"
+	"os"
+	"time"
 
+	"github.com/lologarithm/netgen/lib/ngservice"
 	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
 func myUDPConn() *net.UDPConn {
 	addrs := rnet.MyIPs()
-	log.Printf("MyAddrs: %#v", addrs)
+	fmt.Printf("MyAddrs: %#v", addrs)
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
 	if err != nil {
-		log.Fatalf("Failed to resolve udp: %s", err)
+		fmt.Printf("Failed to resolve udp: %s", err)
+		os.Exit(1)
 	}
 	// Listen to directed udp messages
 	direct, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		log.Fatalf("Failed to listen to udp: %s", err)
+		fmt.Printf("Failed to listen to udp: %s", err)
+		os.Exit(1)
 	}
 	return direct
 }
 
-func runNetwork(name string, sensorStream chan refuge.PortalState) chan refuge.PortalState {
-	stream := make(chan refuge.PortalState, 1) // output stream
-
+func setupNetwork(name string) func(refuge.PortalState) refuge.PortalState {
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
-	log.Printf("Listening on: %s", direct.LocalAddr().String())
-	dec := json.NewDecoder(direct)
+	fmt.Printf("Listening on: %s", direct.LocalAddr().String())
 
 	broadcasts, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeDiscovery)
 	if err != nil {
-		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
+		fmt.Printf("failed to listen to thermo broadcast address: %s", err)
+		os.Exit(1)
 	}
-	broadDec := json.NewDecoder(broadcasts)
 
-	mut := &sync.Mutex{}
-	state := &rnet.Msg{Device: &refuge.Device{Portal: &refuge.Portal{}, Name: name, Addr: direct.LocalAddr().String()}}
-	msg, _ := json.Marshal(state)
-	log.Printf("Broadcasting %s to %s", string(msg), rnet.RefugeMessages.String())
-	// Broadcast we are online!
-	direct.WriteToUDP(msg, rnet.RefugeMessages)
+	listeners := []rnet.Listener{}
+	state := &refuge.Device{Portal: &refuge.Portal{}, Name: name, Addr: direct.LocalAddr().String()}
+	msg := ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
 
-	// Ping listener goroutine
-	go func() {
-		for {
-			v := rnet.Ping{}
-			broadDec.Decode(&v)
-			log.Printf("Got message on discovery(%s), updating status: %s", rnet.RefugeDiscovery, string(msg))
-			// Broadcast on ping
-			mut.Lock()
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			mut.Unlock()
+	b := make([]byte, 256)
+	return func(newState refuge.PortalState) refuge.PortalState {
+		if newState != state.Portal.State {
+			state.Portal.State = newState
+			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
+			rnet.BroadcastAndTimeout(direct, msg, listeners)
 		}
-	}()
 
-	// Sensor broadcast goroutine
-	go func() {
-		for {
-			ns := <-sensorStream
-			mut.Lock()
-			// Write to network our new state
-			state.Portal.State = ns
-
-			// Re-marshal and broadcast new state
-			msg, _ = json.Marshal(state)
-			log.Printf("Broadcasting: %s", string(msg))
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			mut.Unlock()
+		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		n, remoteAddr, _ := broadcasts.ReadFromUDP(b)
+		if n > 0 {
+			fmt.Printf("Got message on discovery(%s), updating status: %s", rnet.RefugeDiscovery, string(msg))
+			rnet.UpdateListeners(listeners, remoteAddr)
+			// Emit current state to pinger.
+			direct.WriteToUDP(msg, remoteAddr)
 		}
-	}()
 
-	// Request listener goroutine
-	go func() {
-		for {
-			v := &refuge.Portal{}
-			err := dec.Decode(&v)
-			if err != nil {
-				log.Printf("Failed to decode fireplace setting: %s", err)
-				continue
+		requestedState := refuge.PortalStateUnknown
+		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		n, remoteAddr, _ = direct.ReadFromUDP(b)
+		if n > 0 {
+			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
+			if ok && packet.Header.MsgType == refuge.PortalMsgType {
+				settings := packet.NetMsg.(*refuge.Portal)
+				requestedState = settings.State
+				fmt.Printf("Newly requested state: %d\n", requestedState)
 			}
-			log.Printf("Setting door to: %#v", v)
-			stream <- refuge.PortalState(v.State)
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 		}
-	}()
-	return stream
+		return requestedState
+	}
 }

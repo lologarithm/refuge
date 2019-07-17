@@ -33,9 +33,10 @@ const (
 )
 
 type server struct {
-	datalock   *sync.RWMutex
-	Devices    map[string]*refugeDevice
-	devUpdates chan refuge.Device
+	datalock     *sync.RWMutex
+	Devices      map[string]*refugeDevice
+	deviceStream chan rnet.Msg
+	devUpdates   chan refuge.Device
 
 	clientslock   *sync.Mutex
 	clientStreams []*websocket.Conn
@@ -44,15 +45,16 @@ type server struct {
 	done      chan struct{}
 }
 
-func runServer(deviceStream chan rnet.Msg) *server {
+func runServer(deviceStream chan rnet.Msg, udpConn *net.UDPConn) *server {
 	srv := &server{
-		datalock:    &sync.RWMutex{},
-		Devices:     map[string]*refugeDevice{},
-		clientslock: &sync.Mutex{},
-		done:        make(chan struct{}, 1),
-		devUpdates:  make(chan refuge.Device, 5), // Updates from network -> portal watcher
+		datalock:     &sync.RWMutex{},
+		Devices:      map[string]*refugeDevice{},
+		deviceStream: deviceStream,
+		clientslock:  &sync.Mutex{},
+		done:         make(chan struct{}, 1),
+		devUpdates:   make(chan refuge.Device, 5), // Updates from network -> portal watcher
 	}
-	go portalAlert(&globalConfig, srv.devUpdates)
+	go portalAlert(&globalConfig, srv.devUpdates, udpConn)
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
 	go eventListener(srv, deviceStream, srv.devUpdates, srv.done)
 	return srv
@@ -72,6 +74,7 @@ func (srv *server) getDevice(name string) (device *refugeDevice) {
 	return device
 }
 func (srv *server) stop() {
+	close(srv.deviceStream) // close the stats file we have been writing.
 	close(srv.devUpdates)
 	<-srv.done
 }
@@ -84,8 +87,7 @@ type refugeDevice struct {
 
 // serve creates the state object "server" and http handlers and launches the http listener.
 // Blocks on ctrl+c so we can safely write the stats file.
-func serve(host string, deviceStream chan rnet.Msg) {
-	srv := runServer(deviceStream)
+func serve(host string, srv *server) {
 	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		access := auth(w, r)
 		if access == AccessNone {
@@ -133,8 +135,7 @@ func serve(host string, deviceStream chan rnet.Msg) {
 	signal.Notify(c, os.Interrupt)
 	<-c
 
-	close(deviceStream) // close the stats file we have been writing.
-	srv.stop()          // wait for server to stop
+	srv.stop() // wait for server to stop
 	log.Printf("Done!")
 }
 

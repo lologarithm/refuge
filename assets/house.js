@@ -6,7 +6,7 @@ var ws;
 // global editing flag, used to disable controls and allow moving them around and attaching to rooms.
 var editing = false;
 
-// use to show ! when discon
+// use to show ! when disconnected
 var connErr = document.getElementById("conn");
 
 // Mostly used for resizing window.
@@ -274,11 +274,14 @@ function createPortal(device) {
     console.log(msg);
   });
   device.update = function(msg) {
+    if (msg.Portal.State != device.msg.Portal.State) {
+      device.hovered = false; // clear hover effect on change of state.
+    }
     device.itemEle.childNodes[2].style.display = "none";
     device.itemEle.childNodes[4].style.display = "none";
     device.itemEle.childNodes[6].style.display = "none";
     device.itemEle.childNodes[8].style.display = "none";
-    if (device.msg.Portal.State != 1) {
+    if (msg.Portal.State != 1) {
       // Open state
       if (device.hovered) {
         device.itemEle.childNodes[4].style.display = "block";
@@ -296,11 +299,11 @@ function createPortal(device) {
   }
   device.itemEle.addEventListener("mouseover", function(e) {
     device.hovered = true;
-    device.update();
+    device.update(device.msg);
   });
   device.itemEle.addEventListener("mouseout", function(e) {
     device.hovered = false;
-    device.update();
+    device.update(device.msg);
   });
 }
 function createSwitch(device) {
@@ -719,7 +722,6 @@ function addEditorControls(device) {
     var brect = device.itemEle.getBoundingClientRect();
     var srect = svgPoint(maincanvas, brect.x, brect.y);
     var off = svgPoint(maincanvas, e.touches[0].clientX, e.touches[0].clientY);
-    console.log("mousedown, off, brect", off, brect, srect);
     offx = off.x-srect.x;
     offy = off.y-srect.y;
     maincanvas.appendChild(device.itemEle);
@@ -801,88 +803,7 @@ function getWeather(domele) {
 }
 
 function getStats(gcanvas) {
-  // var xmlhttp = new XMLHttpRequest();
-  // xmlhttp.onreadystatechange = function() {
-  //     if (xmlhttp.readyState == XMLHttpRequest.DONE) {   // XMLHttpRequest.DONE == 4
-  //        if (xmlhttp.status == 200) {
-  //            var data = JSON.parse(xmlhttp.responseText);
-  //            console.log(data);
-  //            if (data == null) {
-  //              return
-  //            }
-  //            var serLook = {};
-  //            var labels = [];
-  //            var series = [];
-  //            var barSer = {
-  //              label: "HVAC",
-  //              data: [],
-  //              type: "bar",
-  //              borderColor: "#EEEEEE",
-  //              backgroundColor: "#FF0000",
-  //              borderWidth: 0
-  //            };
-  //            for (var i = 0; i < data.length; i++) {
-  //              var name = data[i].Name;
-  //              var lu = serLook[name];
-  //              if (lu == undefined) {
-  //                lu = series.length;
-  //                serLook[name] = lu;
-  //                var color = Math.floor((Math.abs(Math.sin(i+100) * 16777215)) % 16777215).toString(16);
-  //                series.push({
-  //                  label: name,
-  //                  fill: false,
-  //                  borderColor: "#" + color,
-  //                  data: [],
-  //                });
-  //              }
-  //              if (labels.length <= series[lu].data.length) {
-  //                labels.push(data[i].Time);
-  //              }
-  //              if (lu == 0) {
-  //                if (data[i].State == 1) {
-  //                  barSer.data.push({x: new Date(data[i].Time), y: 30});
-  //                } else if (data[i].State == 3) {
-  //                  barSer.data.push({x: new Date(data[i].Time), y: 30});
-  //                } else {
-  //                  barSer.data.push({x: new Date(data[i].Time), y: 0});
-  //                }
-  //              }
-  //              series[lu].data.push({x: new Date(data[i].Time), y: data[i].Temp});
-  //            }
-  //            series.push(barSer);
-  //            console.log("series", series);
-  //            var ctx = gcanvas.getContext('2d');
-  //            var chart = new Chart(ctx, {
-  //                type: 'line',
-  //                data: {
-  //                  labels: labels,
-  //                  datasets: series,
-  //                },
-  //                options: {
-  //                  scales: {
-  //                    xAxes: [{
-  //                      type: "time",
-  //                      time: {
-  //                        unit: "day",
-  //                        displayFormats: {
-  //                          "day": "YYYY-MM-DD"
-  //                        }
-  //                      }
-  //                    }],
-  //                  },
-  //                  // Boolean - whether or not the chart should be responsive and resize when the browser does.
-  //                  responsive: true,
-  //                  // Boolean - whether to maintain the starting aspect ratio or not when responsive, if set to false, will take up entire container
-  //                  maintainAspectRatio: false
-  //                }
-  //            });
-  //        } else {
-  //          console.log("Failed to fetch weather: ", xmlhttp);
-  //        }
-  //     }
-  // };
-  // xmlhttp.open("GET", "/stats", true);
-  // xmlhttp.send();
+  // TODO: Load stats from server and draw graph.
 }
 
 function getTime() {
