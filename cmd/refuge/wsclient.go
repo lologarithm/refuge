@@ -82,13 +82,13 @@ func clientStream(w http.ResponseWriter, r *http.Request, access int, srv *serve
 				ioutil.WriteFile("./pos/"+dev.device.Name+".pos", d, 0644)
 				dev.pos = *v.Pos
 			} else if v.Climate != nil {
-				setTherm(*v.Climate, dev.conn)
+				setTherm(*v.Climate, srv.conn, dev.addr)
 			} else if v.Toggle > 0 {
 				if dev.device.Switch != nil {
-					toggleSwitch(v.Toggle, dev.conn)
+					toggleSwitch(v.Toggle, srv.conn, dev.addr)
 				}
 				if dev.device.Portal != nil {
-					togglePortal(v.Toggle, dev.conn)
+					togglePortal(v.Toggle, srv.conn, dev.addr)
 				}
 			}
 		}

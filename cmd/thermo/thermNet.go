@@ -96,6 +96,7 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			ts.Thermometer.Humidity = readings[len(readings)-1].Humi
 			ts.Motion.Motion = lastMotion.Unix()
 			msg = ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
+			fmt.Printf("Broadcasting new state: %#v", ts.Thermometer)
 			rnet.BroadcastAndTimeout(direct, msg, listeners)
 			runControl = false
 		}
@@ -103,8 +104,8 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
 		if ping.Respond {
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
-			// Emit current state to pinger.
-			direct.WriteToUDP(msg, remoteAddr)
+			print("Got ping, broadcasting current state.")
+			rnet.BroadcastAndTimeout(direct, msg, listeners)
 		}
 
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
@@ -118,6 +119,7 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 				ts.Thermostat.Settings.Mode = settings.Mode
 			} else if packet.Header.MsgType == rnet.PingMsgType {
 				// Just letting us know to respond to them now.
+				print("Got direct ping, broadcasting current state.")
 			}
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 			runControl = true
