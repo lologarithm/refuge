@@ -1,14 +1,17 @@
 package main
 
 import (
+	"encoding/gob"
 	"encoding/json"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -30,11 +33,31 @@ const (
 )
 
 type server struct {
-	datalock *sync.Mutex
-	Devices  map[string]*refugeDevice
+	datalock     *sync.RWMutex
+	Devices      map[string]*refugeDevice
+	deviceStream chan rnet.Msg
+	devUpdates   chan refuge.Device
 
 	clientslock   *sync.Mutex
 	clientStreams []*websocket.Conn
+
+	eventData []refuge.TempEvent
+	done      chan struct{}
+}
+
+func runServer(deviceStream chan rnet.Msg, udpConn *net.UDPConn) *server {
+	srv := &server{
+		datalock:     &sync.RWMutex{},
+		Devices:      map[string]*refugeDevice{},
+		deviceStream: deviceStream,
+		clientslock:  &sync.Mutex{},
+		done:         make(chan struct{}, 1),
+		devUpdates:   make(chan refuge.Device, 5), // Updates from network -> portal watcher
+	}
+	go portalAlert(&globalConfig, srv.devUpdates, udpConn)
+	// Updater goroutine. Updates data state and pushes the new state to websocket clients
+	go eventListener(srv, deviceStream, srv.devUpdates, srv.done)
+	return srv
 }
 
 // Getter functions convert names to device keys (avoiding spaces)
@@ -50,6 +73,11 @@ func (srv *server) getDevice(name string) (device *refugeDevice) {
 	srv.datalock.Unlock()
 	return device
 }
+func (srv *server) stop() {
+	close(srv.deviceStream) // close the stats file we have been writing.
+	close(srv.devUpdates)
+	<-srv.done
+}
 
 type refugeDevice struct {
 	device refuge.Device
@@ -58,101 +86,216 @@ type refugeDevice struct {
 }
 
 // serve creates the state object "server" and http handlers and launches the http listener.
-// Blocks on the http listener.
-func serve(host string, deviceStream chan rnet.Msg) {
-	// localTime := time.Location{}
-	srv := &server{
-		datalock:    &sync.Mutex{},
-		Devices:     map[string]*refugeDevice{},
-		clientslock: &sync.Mutex{},
-	}
-
-	deviceUpdates := make(chan refuge.Device, 5)
-	go portalAlert(&globalConfig, deviceUpdates)
-
-	// Updater goroutine. Updates data state and pushes the new state to websocket clients
-	go func() {
-		for {
-			msg := <-deviceStream
-			td := msg.Device
-			existing := srv.getDevice(td.Name)
-			new := &refugeDevice{
-				device: *td,
+// Blocks on ctrl+c so we can safely write the stats file.
+func serve(host string, srv *server) {
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		access := auth(w, r)
+		if access == AccessNone {
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		srv.datalock.RLock()
+		enc.Encode(srv.eventData)
+		srv.datalock.RUnlock()
+	})
+	// Little weather proxy/cache for the frontends
+	http.HandleFunc("/weather", weather())
+	http.HandleFunc("/stream", srv.clientStreamHandler)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if auth(w, r) == AccessNone {
+			return // Don't let them access
+		}
+		path := strings.Split(strings.TrimPrefix(r.URL.Path, "/"), "/")
+		switch path[0] {
+		case "static", "assets":
+			if path[1] == "house.html" {
+				break
 			}
-			if existing != nil {
-				new.pos = existing.pos
-				if existing.device.Addr != td.Addr {
-					raddr, err := net.ResolveUDPAddr("udp", td.Addr)
-					if err != nil {
-						log.Fatalf("failed to resolve thermo broadcast address: %s", err)
-					}
-					conn, err := net.DialUDP("udp", nil, raddr)
-					if err != nil {
-						log.Printf("Failed to open UDP: %s", err)
-						continue
-					}
-					new.conn = conn
-				} else {
-					new.conn = existing.conn
-				}
-			} else {
+			Static(w, r, path)
+			return
+		}
+		// Default to base site.
+		tmpl, err := template.ParseFiles("./assets/house.html")
+		if err != nil {
+			log.Fatalf("unable to parse html: %s", err)
+		}
+		tmpl.Execute(w, nil)
+
+	})
+
+	log.Printf("starting webhost on: %s", host)
+	go func() {
+		err := http.ListenAndServe(host, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+
+	srv.stop() // wait for server to stop
+	log.Printf("Done!")
+}
+
+// Static will serve the given file from the path in the url.
+func Static(w http.ResponseWriter, r *http.Request, path []string) {
+	if len(path) < 2 || !strings.Contains(path[len(path)-1], ".") {
+		// Only serve actual files here.
+		return
+	}
+	file := strings.Join(path, "/")
+	if strings.Contains(file, "/gz/") {
+		w.Header().Set("Content-Encoding", "gzip")
+	}
+	http.ServeFile(w, r, file)
+}
+
+func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan refuge.Device, done chan struct{}) {
+	// Load all existing stats from file.
+	events := LoadStats()
+	srv.datalock.Lock()
+	srv.eventData = events
+	srv.datalock.Unlock()
+
+	todayDate := getTodayDate()
+	statFile := GetStatsFile(todayDate)
+
+	enc := gob.NewEncoder(statFile)
+	for {
+		msg, ok := <-deviceStream
+		if !ok {
+			statFile.Sync()
+			statFile.Close()
+			done <- struct{}{}
+			return
+		}
+		td := msg.Device
+		existing := srv.getDevice(td.Name)
+		newd := &refugeDevice{
+			device: *td,
+		}
+		if existing != nil {
+			newd.pos = existing.pos
+			if existing.device.Addr != td.Addr {
 				raddr, err := net.ResolveUDPAddr("udp", td.Addr)
 				if err != nil {
-					log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+					log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
+					continue
 				}
 				conn, err := net.DialUDP("udp", nil, raddr)
 				if err != nil {
 					log.Printf("Failed to open UDP: %s", err)
 					continue
 				}
-				new.conn = conn
-
-				fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
-				if err == nil {
-					pos := &Position{}
-					json.Unmarshal(fdata, pos)
-					new.pos = *pos
-				}
+				newd.conn = conn
+			} else {
+				newd.conn = existing.conn
 			}
-			// Update our cached thermostat
-			srv.datalock.Lock()
-			srv.Devices[strings.Replace(td.Name, " ", "", -1)] = new
-			srv.datalock.Unlock()
-			deviceUpdates <- *td // push updates to alert system
-
-			up := &DeviceUpdate{
-				Device: &new.device,
-				Pos:    new.pos,
-			}
-			// Serialize for clients
-			d, err := json.Marshal(up)
+		} else {
+			raddr, err := net.ResolveUDPAddr("udp", td.Addr)
 			if err != nil {
-				log.Printf("[Error] Failed to marshal thermal data to json: %s", err)
+				log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
+				continue
 			}
+			conn, err := net.DialUDP("udp", nil, raddr)
+			if err != nil {
+				log.Printf("Failed to open UDP: %s", err)
+				continue
+			}
+			newd.conn = conn
 
-			// Now push the update to all connected websockets
-			deadstreams := []int{}
-			srv.clientslock.Lock()
-			for i, cs := range srv.clientStreams {
-				err := cs.WriteMessage(websocket.TextMessage, d)
-				if err != nil {
-					deadstreams = append(deadstreams, i)
+			fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
+			if err == nil {
+				pos := &Position{}
+				json.Unmarshal(fdata, pos)
+				newd.pos = *pos
+			}
+		}
+
+		id := strings.Replace(td.Name, " ", "", -1)
+		if newd.device.Thermostat != nil {
+			dowrite := true
+			if dev, ok := srv.Devices[id]; ok {
+				if *dev.device.Thermometer == *newd.device.Thermometer &&
+					dev.device.Thermostat.State == newd.device.Thermostat.State {
+					dowrite = false // only record changes
 				}
 			}
-			// remove dead streams now
-			for i := len(deadstreams) - 1; i > -1; i-- {
-				idx := deadstreams[i]
-				srv.clientStreams = append(srv.clientStreams[:idx], srv.clientStreams[idx+1:]...)
-			}
-			srv.clientslock.Unlock()
-		}
-	}()
 
-	// Little weather proxy/cache for the frontends
+			// Stats file rollover
+			todayTemp := getTodayDate()
+			if todayDate.Unix() != todayTemp.Unix() {
+				log.Printf("Switching log file from %d to %d", todayDate.Unix(), todayTemp.Unix())
+				todayDate = todayTemp
+				statFile.Sync()
+				statFile.Close()
+				statFile = GetStatsFile(todayDate)
+			}
+
+			if dowrite {
+				te := refuge.TempEvent{
+					Name:     id,
+					Time:     time.Now(),
+					Temp:     newd.device.Thermometer.Temp,
+					Humidity: newd.device.Thermometer.Humidity,
+					State:    newd.device.Thermostat.State,
+				}
+				enc.Encode(&te)
+				srv.datalock.Lock()
+				srv.eventData = append(srv.eventData, te)
+				srv.datalock.Unlock()
+			}
+		}
+
+		// Update our cached thermostat
+		srv.datalock.Lock()
+		srv.Devices[id] = newd
+		srv.datalock.Unlock()
+		deviceUpdates <- *td // push updates to alert system
+
+		up := &DeviceUpdate{
+			Device: &newd.device,
+			Pos:    newd.pos,
+		}
+		// Serialize for clients
+		d, err := json.Marshal(up)
+		if err != nil {
+			log.Printf("[Error] Failed to marshal thermal data to json: %s", err)
+		}
+
+		// Now push the update to all connected websockets
+		deadstreams := []int{}
+		srv.clientslock.Lock()
+		for i, cs := range srv.clientStreams {
+			err := cs.WriteMessage(websocket.TextMessage, d)
+			if err != nil {
+				deadstreams = append(deadstreams, i)
+			}
+		}
+		// remove dead streams now
+		for i := len(deadstreams) - 1; i > -1; i-- {
+			idx := deadstreams[i]
+			srv.clientStreams = append(srv.clientStreams[:idx], srv.clientStreams[idx+1:]...)
+		}
+		srv.clientslock.Unlock()
+	}
+}
+
+func getTodayDate() time.Time {
+	now := time.Now()
+	year, month, day := now.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
+}
+
+func weather() http.HandlerFunc {
 	weather := []byte{}
 	lastWeather := time.Now()
 	var wmutex sync.RWMutex
-	http.HandleFunc("/weather", func(w http.ResponseWriter, r *http.Request) {
+
+	return func(w http.ResponseWriter, r *http.Request) {
 		wmutex.RLock()
 		if time.Now().Sub(lastWeather) < (time.Minute*15) && len(weather) > 0 {
 			w.Write(weather)
@@ -180,24 +323,6 @@ func serve(host string, deviceStream chan rnet.Msg) {
 		weather = data
 		lastWeather = time.Now()
 		w.Write(weather)
-	})
-	http.HandleFunc("/stream", srv.clientStreamHandler)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if auth(w, r) == AccessNone {
-			return // Don't let them access
-		}
-		// Technically not sending anything over template right now...
-		tmpl, err := template.ParseFiles("./assets/house.html")
-		if err != nil {
-			log.Fatalf("unable to parse html: %s", err)
-		}
-		tmpl.Execute(w, nil)
-	})
-
-	log.Printf("starting webhost on: %s", host)
-	err := http.ListenAndServe(host, nil)
-	if err != nil {
-		log.Fatal(err)
 	}
 }
 

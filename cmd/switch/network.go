@@ -1,85 +1,81 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
+	"fmt"
 	"net"
-	"sync"
+	"os"
+	"time"
 
+	"github.com/lologarithm/netgen/lib/ngservice"
 	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
 func myUDPConn() *net.UDPConn {
 	addrs := rnet.MyIPs()
-	log.Printf("MyAddrs: %#s", addrs)
+	fmt.Printf("MyAddrs: %#v", addrs)
 
 	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
 	if err != nil {
-		log.Fatalf("Failed to resolve udp: %s", err)
+		fmt.Printf("Failed to resolve udp: %s", err)
+		os.Exit(1)
 	}
 	// Listen to directed udp messages
 	direct, err := net.ListenUDP("udp", addr)
 	if err != nil {
-		log.Fatalf("Failed to listen to udp: %s", err)
+		fmt.Printf("Failed to listen to udp: %s", err)
+		os.Exit(1)
 	}
 	return direct
 }
 
-func runNetwork(name string) chan bool {
-	stream := make(chan bool, 1)
-
+func setupNetwork(name string) func() int {
 	// Open UDP connection to a local addr/port.
 	direct := myUDPConn()
-	log.Printf("Listening on: %s", direct.LocalAddr().String())
-	dec := json.NewDecoder(direct)
+	fmt.Printf("Listening on: %s", direct.LocalAddr().String())
 
 	broadcasts, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeDiscovery)
 	if err != nil {
-		log.Fatalf("failed to listen to thermo broadcast address: %s", err)
+		fmt.Printf("failed to listen to thermo broadcast address: %s", err)
+		os.Exit(1)
 	}
-	broadDec := json.NewDecoder(broadcasts)
 
-	mut := &sync.Mutex{}
-	state := &rnet.Msg{Device: &refuge.Device{Name: name, Addr: direct.LocalAddr().String(), Switch: &refuge.Switch{}}}
-	msg, _ := json.Marshal(state)
-	log.Printf("Broadcasting %s to %s", string(msg), rnet.RefugeMessages.String())
-	// Broadcast we are online!
-	direct.WriteToUDP(msg, rnet.RefugeMessages)
+	listeners := []rnet.Listener{}
+	state := &refuge.Device{Switch: &refuge.Switch{}, Name: name, Addr: direct.LocalAddr().String()}
+	msg := ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
 
-	go func() {
-		for {
-			v := rnet.Ping{}
-			broadDec.Decode(&v)
-			log.Printf("Got message on discovery(%s), updating status: %s", rnet.RefugeDiscovery, string(msg))
-			// Broadcast on ping
-			mut.Lock()
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			mut.Unlock()
+	// Ping the network to say we are online
+	direct.WriteToUDP(ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: false}), rnet.RefugeDiscovery)
+
+	b := make([]byte, 256)
+	return func() int {
+		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
+		if ping.Respond {
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			direct.WriteToUDP(msg, remoteAddr) // Emit current state to pinger.
 		}
-	}()
 
-	go func() {
-		for {
-			v := &refuge.Switch{}
-			err := dec.Decode(&v)
-			if err != nil {
-				log.Printf("Failed to decode fireplace setting: %s", err)
-				continue
+		requestedState := 0
+		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+		n, remoteAddr, _ := direct.ReadFromUDP(b)
+		if n > 0 {
+			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
+			if ok && packet.Header.MsgType == refuge.SwitchMsgType {
+				settings := packet.NetMsg.(*refuge.Switch)
+				requestedState = 1
+				if settings.On == true {
+					requestedState = 2
+				}
+				fmt.Printf("Newly requested state: %d\n", requestedState)
+				state.Switch.On = settings.On
+			} else if packet.Header.MsgType == rnet.PingMsgType {
+				// Just letting us know to respond to them now.
+				fmt.Printf("Got Direct Message, adding to listeners... %v", remoteAddr)
 			}
-			log.Printf("Setting fireplace to: %#v", v)
-			stream <- v.On
-
-			mut.Lock()
-			// Write to network our new state
-			state.Switch.On = v.On
-
-			// Re-marshal and broadcast new state
-			msg, _ = json.Marshal(state)
-			log.Printf("Broadcasting: %s", string(msg))
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
-			mut.Unlock()
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
+			rnet.BroadcastAndTimeout(direct, msg, listeners)
 		}
-	}()
-	return stream
+		return requestedState
+	}
 }

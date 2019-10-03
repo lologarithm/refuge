@@ -1,32 +1,23 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"time"
 
+	"github.com/lologarithm/netgen/lib/ngservice"
 	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/refuge"
 	"gitlab.com/lologarithm/refuge/rnet"
 	"gitlab.com/lologarithm/refuge/sensor"
 )
 
-var comma = []byte{','}
-var colon = []byte{':'}
-
-func jsonSerThemo(dev *refuge.Device) []byte {
-	const tmpl string = `{"Name":"%s","Addr":"%s", "Thermometer": {"Temp":%f,"Humidity":%f}, "Motion": {"Motion": %d}, "Thermostat":{"State":%d, "Target": %f, "Settings": {"Fan":%d,"Low":%f,"High":%f}}}`
-	return []byte(fmt.Sprintf(tmpl, dev.Name, dev.Addr, dev.Thermometer.Temp, dev.Thermometer.Humidity, dev.Motion.Motion, dev.Thermostat.State, dev.Thermostat.Target, dev.Thermostat.Settings.Mode, dev.Thermostat.Settings.Low, dev.Thermostat.Settings.High))
-}
-
 func runNetwork(name string, cl climate.Controller, readTherm func() (float32, float32, bool), readMotion func() bool) {
-	ds := climate.Settings{
+	ds := refuge.Settings{
 		Low:  19,
 		High: 26.66,
-		Mode: climate.ModeAuto,
+		Mode: refuge.ModeAuto,
 	} // Shove in first desired state
 	addrs := rnet.MyIPs()
 
@@ -50,12 +41,14 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		os.Exit(1)
 	}
 
+	listeners := []rnet.Listener{}
+
 	ts := &refuge.Device{
 		Name: name,
 		Addr: directAddr.String(),
 		Thermostat: &refuge.Thermostat{
 			Target: 0,
-			Settings: climate.Settings{
+			Settings: refuge.Settings{
 				// Default settings on launch
 				Mode: ds.Mode,
 				Low:  ds.Low,
@@ -71,21 +64,25 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 		},
 	}
 
-	msg := jsonSerThemo(ts)
+	msg := ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
 	// Look for broadcasts
 	// Try to read from network.
-	v := climate.Settings{
+	v := refuge.Settings{
 		High: ts.Thermostat.Settings.High,
 		Low:  ts.Thermostat.Settings.Low,
-		Mode: climate.ModeAuto,
+		Mode: refuge.ModeAuto,
 	}
 	lr := time.Time{}
 	lastMotion := time.Now()
 	motReading := true
-	b := make([]byte, 512)
+	b := make([]byte, 256)
 	runControl := false
 
+	// Ping the network to say we are online
+	direct.WriteToUDP(ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: false}), rnet.RefugeDiscovery)
+
 	readings := []sensor.ThermalReading{}
+	numReadings := 2 // max number of readings to hold for averaging temp
 	for {
 		if runControl {
 			avgt := float32(0)
@@ -98,49 +95,32 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			ts.Thermometer.Temp = avgt
 			ts.Thermometer.Humidity = readings[len(readings)-1].Humi
 			ts.Motion.Motion = lastMotion.Unix()
-
-			msg = jsonSerThemo(ts)
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
+			msg = ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
+			rnet.BroadcastAndTimeout(direct, msg, listeners)
 			runControl = false
 		}
 
-		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, _, _ := broadcasts.ReadFromUDP(b)
-		if n > 0 {
-			fmt.Printf("Got message on discovery(%s): %s\n", rnet.RefugeDiscovery, string(b[:n]))
-			// Broadcast on ping
-			direct.WriteToUDP(msg, rnet.RefugeMessages)
+		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
+		if ping.Respond {
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			// Emit current state to pinger.
+			direct.WriteToUDP(msg, remoteAddr)
 		}
 
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, _, _ = direct.ReadFromUDP(b)
+		n, remoteAddr, _ := direct.ReadFromUDP(b)
 		if n > 0 {
-			bits := b[:n]
-			if bits[0] == '{' && bits[len(bits)-1] == '}' {
-				assignments := bytes.Split(bits[1:len(bits)-1], comma)
-				for _, assign := range assignments {
-					parts := bytes.Split(assign, colon)
-					name := string(parts[0])
-					val := string(parts[1])
-					if name == `"Low"` {
-						l, _ := strconv.ParseFloat(val, 32)
-						fmt.Printf("Assigning low to be %f\n", l)
-						v.Low = float32(l)
-					} else if name == `"High"` {
-						h, _ := strconv.ParseFloat(val, 32)
-						v.High = float32(h)
-						fmt.Printf("Assigning high to be %f\n", h)
-					} else if name == `"Mode"` {
-						// v.Mode =
-					} else {
-						fmt.Printf("Unknown key: %s\n", name)
-					}
-				}
-				ts.Thermostat.Settings.High = v.High
-				ts.Thermostat.Settings.Low = v.Low
-				// ts.Thermostat.Settings.Mode = v.Mode
-				runControl = true
+			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
+			if ok && packet.Header.MsgType == refuge.SettingsMsgType {
+				settings := packet.NetMsg.(*refuge.Settings)
+				ts.Thermostat.Settings.High = settings.High
+				ts.Thermostat.Settings.Low = settings.Low
+				ts.Thermostat.Settings.Mode = settings.Mode
+			} else if packet.Header.MsgType == rnet.PingMsgType {
+				// Just letting us know to respond to them now.
 			}
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			runControl = true
 		}
 
 		if readMotion != nil {
@@ -157,8 +137,9 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			lastMotion = time.Now()
 		}
 
-		if time.Now().Sub(lr) < time.Minute {
-			time.Sleep(time.Millisecond * 250)
+		// Only re-read sensors once every 2 minutes and when there is no re-controlling to run.
+		if time.Now().Sub(lr) < time.Minute*2 && !runControl {
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 
@@ -168,23 +149,29 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			t, h, csg := readTherm()
 			if csg {
 				if len(readings) > 0 {
-					diff := abs(t - readings[len(readings)-1].Temp)
+					lastReading := readings[len(readings)-1]
+					diff := abs(t - lastReading.Temp)
 					if diff > 10 {
 						// Unlikely this big of a jump would happen
-						print("Last reading >10C different in the past 5 minutes. Ignoring reading.\n")
+						print("Last reading >10C different than previous readings. Ignoring reading.\n")
+						break
+					}
+					if diff < 0.01 && abs(h-lastReading.Humi) < 0.01 {
+						fmt.Print("no difference in last reading... ignoring reading.\n")
+						lr = time.Now()
 						break
 					}
 				}
 				readings = append(readings, sensor.ThermalReading{Temp: t, Humi: h})
+				if len(readings) > numReadings {
+					copy(readings, readings[1:])
+					readings = readings[:numReadings]
+				}
 				runControl = true
+				lr = time.Now()
 				break
 			}
 		}
-
-		if len(readings) > 2 {
-			readings = readings[1:]
-		}
-		lr = time.Now()
 	}
 }
 

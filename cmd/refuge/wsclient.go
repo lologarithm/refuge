@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"gitlab.com/lologarithm/refuge/climate"
 	"gitlab.com/lologarithm/refuge/refuge"
 )
 
@@ -15,10 +14,10 @@ var upgrader = websocket.Upgrader{} // use default options
 
 // Request is sent from websocket client to server to request change to someting
 type Request struct {
-	Name    string            // Name of device to update
-	Climate *climate.Settings // Climate Control Change Request
-	Toggle  int               // Toggle of device request.
-	Pos     *Position         // Request to change device position
+	Name    string           // Name of device to update
+	Climate *refuge.Settings // Climate Control Change Request
+	Toggle  int              // Toggle of device request.
+	Pos     *Position        // Request to change device position
 }
 
 // DeviceUpdate is a message to the client containing updated information about
