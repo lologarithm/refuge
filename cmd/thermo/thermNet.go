@@ -67,11 +67,11 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 	msg := ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
 	// Look for broadcasts
 	// Try to read from network.
-	v := refuge.Settings{
-		High: ts.Thermostat.Settings.High,
-		Low:  ts.Thermostat.Settings.Low,
-		Mode: refuge.ModeAuto,
-	}
+	// v := refuge.Settings{
+	// 	High: ts.Thermostat.Settings.High,
+	// 	Low:  ts.Thermostat.Settings.Low,
+	// 	Mode: refuge.ModeAuto,
+	// }
 	lr := time.Time{}
 	lastMotion := time.Now()
 	motReading := true
@@ -90,13 +90,12 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 				avgt += v.Temp
 			}
 			avgt /= float32(len(readings))
-			ts.Thermostat.Target = climate.Control(cl, v, lastMotion, sensor.ThermalReading{Temp: avgt, Humi: ts.Thermometer.Humidity})
+			ts.Thermostat.Target = climate.Control(cl, ts.Thermostat.Settings, lastMotion, sensor.ThermalReading{Temp: avgt, Humi: ts.Thermometer.Humidity})
 			ts.Thermostat.State = cl.State()
 			ts.Thermometer.Temp = avgt
 			ts.Thermometer.Humidity = readings[len(readings)-1].Humi
 			ts.Motion.Motion = lastMotion.Unix()
 			msg = ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
-			fmt.Printf("Broadcasting new state: %#v", ts.Thermometer)
 			rnet.BroadcastAndTimeout(direct, msg, listeners)
 			runControl = false
 		}
@@ -114,6 +113,7 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
 			if ok && packet.Header.MsgType == refuge.SettingsMsgType {
 				settings := packet.NetMsg.(*refuge.Settings)
+				fmt.Printf("Got new settings request: %#v", settings)
 				ts.Thermostat.Settings.High = settings.High
 				ts.Thermostat.Settings.Low = settings.Low
 				ts.Thermostat.Settings.Mode = settings.Mode

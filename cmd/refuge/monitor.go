@@ -80,7 +80,7 @@ func readNetwork(udpConn *net.UDPConn, tstream chan rnet.Msg) {
 		}
 		switch {
 		case reading.Thermostat != nil:
-			log.Printf("New reading: %#v", reading.Thermostat)
+			log.Printf("New reading (%s, %s): %#v", reading.Device.Name, reading.Device.Addr, reading.Thermostat)
 		case reading.Switch != nil:
 			log.Printf("New Switch: %#v", reading.Switch)
 		case reading.Portal != nil:
@@ -88,9 +88,6 @@ func readNetwork(udpConn *net.UDPConn, tstream chan rnet.Msg) {
 		default:
 			log.Printf("Unknown message: %#v", reading)
 			continue
-		}
-		if reading.Thermometer != nil {
-			log.Printf("New thermo reading: %#v", reading.Thermometer)
 		}
 		tstream <- *reading
 	}
