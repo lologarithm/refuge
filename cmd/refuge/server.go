@@ -41,6 +41,7 @@ type server struct {
 	clientslock   *sync.Mutex
 	clientStreams []*websocket.Conn
 
+	conn      *net.UDPConn
 	eventData []refuge.TempEvent
 	done      chan struct{}
 }
@@ -53,6 +54,7 @@ func runServer(deviceStream chan rnet.Msg, udpConn *net.UDPConn) *server {
 		clientslock:  &sync.Mutex{},
 		done:         make(chan struct{}, 1),
 		devUpdates:   make(chan refuge.Device, 5), // Updates from network -> portal watcher
+		conn:         udpConn,
 	}
 	go portalAlert(&globalConfig, srv.devUpdates, udpConn)
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
@@ -81,8 +83,9 @@ func (srv *server) stop() {
 
 type refugeDevice struct {
 	device refuge.Device
-	conn   *net.UDPConn
-	pos    Position
+	// conn   *net.UDPConn
+	addr *net.UDPAddr
+	pos  Position
 }
 
 // serve creates the state object "server" and http handlers and launches the http listener.
@@ -185,14 +188,9 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 					log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
 					continue
 				}
-				conn, err := net.DialUDP("udp", nil, raddr)
-				if err != nil {
-					log.Printf("Failed to open UDP: %s", err)
-					continue
-				}
-				newd.conn = conn
+				newd.addr = raddr
 			} else {
-				newd.conn = existing.conn
+				newd.addr = existing.addr
 			}
 		} else {
 			raddr, err := net.ResolveUDPAddr("udp", td.Addr)
@@ -200,12 +198,7 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 				log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
 				continue
 			}
-			conn, err := net.DialUDP("udp", nil, raddr)
-			if err != nil {
-				log.Printf("Failed to open UDP: %s", err)
-				continue
-			}
-			newd.conn = conn
+			newd.addr = raddr
 
 			fdata, err := ioutil.ReadFile("./pos/" + td.Name + ".pos")
 			if err == nil {

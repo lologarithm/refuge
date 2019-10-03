@@ -44,7 +44,7 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		cl = &climate.FakeController{}
 		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
 		getMot := func() bool { return true }
-		getTherm := func() (float32, float32, bool) { return 20, 20, true }
+		getTherm := func(includeWait bool) (float32, float32, bool) { return 20, 20, true }
 		go runNetwork(name, cl, getTherm, getMot)
 		return
 	}
@@ -60,6 +60,6 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		print("No motion sensor attached. Defaulting to always have motion 'on'.\n")
 	}
 	tp := rpio.Pin(thermpin)
-	getTherm := func() (float32, float32, bool) { return sensor.ReadDHT22(tp) }
+	getTherm := func(includeWait bool) (float32, float32, bool) { return sensor.ReadDHT22(tp, includeWait) }
 	go runNetwork(name, cl, getTherm, getMot)
 }

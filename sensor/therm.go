@@ -28,11 +28,13 @@ func Therm(p int, measureInterval time.Duration, stream chan ThermalReading) {
 		var t, h float32
 		var csg bool
 		debug.SetGCPercent(-1)
+		includeWait := false
 		for i := 0; i < 10; i++ {
-			t, h, csg = ReadDHT22(pin)
+			t, h, csg = ReadDHT22(pin, includeWait)
 			if csg {
 				break
 			}
+			includeWait = true
 		}
 		debug.SetGCPercent(100)
 		if !csg {
@@ -49,11 +51,13 @@ func Therm(p int, measureInterval time.Duration, stream chan ThermalReading) {
 	}
 }
 
-func ReadDHT22(pin rpio.Pin) (float32, float32, bool) {
+func ReadDHT22(pin rpio.Pin, includeWait bool) (float32, float32, bool) {
 	// early allocations before time critical code
 	pulseLen := make([]int64, 82)
 
-	time.Sleep(2000 * time.Millisecond)
+	if includeWait {
+		time.Sleep(2000 * time.Millisecond)
+	}
 	pin.Mode(rpio.Output)
 	pin.High()
 

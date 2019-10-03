@@ -126,7 +126,7 @@ func ControlLoop(controller Controller, setStream chan refuge.Settings, thermStr
 
 // Control accepts current state and decides what to change
 func Control(controller Controller, s refuge.Settings, lastMotion time.Time, tr sensor.ThermalReading) float32 {
-	fmt.Printf("Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
+	fmt.Printf(" Climate Loop: Temp: %.1f, Hum: %.1f State: %v\n", tr.Temp, tr.Humi, s)
 	state := controller.State()
 
 	if s.Mode == refuge.ModeOff {
@@ -134,7 +134,7 @@ func Control(controller Controller, s refuge.Settings, lastMotion time.Time, tr 
 			fmt.Println("Thermostat was manually disabled.")
 			controller.Off()
 		}
-		return 0
+		return -1
 	}
 
 	tempOffset := float32(0)

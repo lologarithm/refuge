@@ -1,8 +1,8 @@
 package rnet
 
 import (
-	"log"
 	"net"
+	"os"
 	"strings"
 
 	"gitlab.com/lologarithm/refuge/refuge"
@@ -30,7 +30,8 @@ type Ping struct {
 
 func failErr(ctx string, e error) {
 	if e != nil {
-		log.Fatalf("Failed to %s: %s", ctx, e)
+		print("Failed to " + ctx + ": " + e.Error())
+		os.Exit(1)
 	}
 }
 
@@ -50,7 +51,7 @@ func MyIPs() (mine []string) {
 			continue // ignore docker network
 		}
 		if multi, err := itf.MulticastAddrs(); err != nil {
-			log.Fatal("cant get the IPs MulticastAddress", err)
+			failErr("cant get the IPs MulticastAddress", err)
 		} else if len(multi) == 0 {
 			continue // no multicast
 		}
