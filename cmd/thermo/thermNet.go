@@ -92,14 +92,14 @@ func runNetwork(name string, cl climate.Controller, readTherm func(includeWait b
 			ts.Motion.Motion = lastMotion.Unix()
 			msg = ngservice.WriteMessage(rnet.Context, rnet.Msg{Device: ts})
 			fmt.Printf("(%s) Broadcasting new state: %#v %#v\n", time.Now().Format("15:04:05 MST"), ts.Thermometer, ts.Thermostat)
-			rnet.BroadcastAndTimeout(direct, msg, listeners)
+			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
 			runControl = false
 		}
 
 		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
 		if ping.Respond {
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
-			rnet.BroadcastAndTimeout(direct, msg, listeners)
+			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
 		}
 
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))

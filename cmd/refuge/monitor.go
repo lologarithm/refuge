@@ -105,6 +105,7 @@ func ping(udpConn *net.UDPConn) {
 
 type DeviceState struct {
 	refuge.Device
+	lastPing   time.Time
 	lastUpdate time.Time
 	lastOpened time.Time
 	lastEmail  time.Time
@@ -149,13 +150,15 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 		}
 
 		for _, p := range devices {
+			pingDiff := time.Now().Sub(p.lastPing)
 			upDiff := time.Now().Sub(p.lastUpdate)
 			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)
 
-			if upDiff > time.Minute*3 { // if we haven't heard from device in >3min, ping for an update.
+			if upDiff > time.Minute*3 || pingDiff > time.Minute*5 { // if we haven't heard from device in >3min, ping for an update.
 				addr, _ := net.ResolveUDPAddr("udp", p.Addr)
 				udpConn.WriteToUDP(pingmsg, addr)
+				p.lastPing = time.Now()
 			}
 			if upDiff > time.Minute*5 {
 				// If we haven't heard in 5min... something is prob wrong.

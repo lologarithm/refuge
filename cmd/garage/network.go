@@ -53,7 +53,7 @@ func setupNetwork(name string) func(refuge.PortalState) refuge.PortalState {
 			state.Portal.State = newState
 			fmt.Printf("Broadcasting new state: %#v\n", state.Portal)
 			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
-			rnet.BroadcastAndTimeout(direct, msg, listeners)
+			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
 		}
 
 		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
