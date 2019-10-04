@@ -167,9 +167,9 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 				// If we haven't gotten an update in a while something is probably wrong.
 				if upDiff > upAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
 					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
-					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 10 minutes.")
-					p.numEmails++
-					p.lastEmail = time.Now()
+					// sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 10 minutes.")
+					// p.numEmails++
+					// p.lastEmail = time.Now()
 				}
 			}
 			if p.Portal == nil {
