@@ -10,7 +10,7 @@ import (
 
 // RefugeDiscovery is the multicast address used by webserver to discover devices.
 var RefugeDiscovery *net.UDPAddr
-var refugeDiscovery = "225.1.2.3:8767"
+var refugeDiscovery = "225.1.2.3:8778"
 
 func init() {
 	var err error
@@ -24,7 +24,9 @@ type Msg struct {
 }
 
 // Ping is a request for discovery of devices
-type Ping struct{}
+type Ping struct {
+	Respond bool
+}
 
 func failErr(ctx string, e error) {
 	if e != nil {

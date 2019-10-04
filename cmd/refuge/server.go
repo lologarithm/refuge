@@ -93,6 +93,7 @@ func serve(host string, srv *server) {
 		if access == AccessNone {
 			return
 		}
+		w.Header().Set("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
 		srv.datalock.RLock()
 		enc.Encode(srv.eventData)
@@ -158,8 +159,10 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 	srv.datalock.Lock()
 	srv.eventData = events
 	srv.datalock.Unlock()
-	// Now open new file to write to
-	statFile := GetStatsFile()
+
+	todayDate := getTodayDate()
+	statFile := GetStatsFile(todayDate)
+
 	enc := gob.NewEncoder(statFile)
 	for {
 		msg, ok := <-deviceStream
@@ -179,7 +182,8 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 			if existing.device.Addr != td.Addr {
 				raddr, err := net.ResolveUDPAddr("udp", td.Addr)
 				if err != nil {
-					log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+					log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
+					continue
 				}
 				conn, err := net.DialUDP("udp", nil, raddr)
 				if err != nil {
@@ -193,7 +197,8 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 		} else {
 			raddr, err := net.ResolveUDPAddr("udp", td.Addr)
 			if err != nil {
-				log.Fatalf("failed to resolve thermo broadcast address: %s", err)
+				log.Printf("Failed to resolve UDP addr for device (%#v): %s", existing.device, err)
+				continue
 			}
 			conn, err := net.DialUDP("udp", nil, raddr)
 			if err != nil {
@@ -209,22 +214,45 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 				newd.pos = *pos
 			}
 		}
+
+		id := strings.Replace(td.Name, " ", "", -1)
 		if newd.device.Thermostat != nil {
-			te := refuge.TempEvent{
-				Name:     newd.device.Name,
-				Time:     time.Now(),
-				Temp:     newd.device.Thermometer.Temp,
-				Humidity: newd.device.Thermometer.Humidity,
-				State:    newd.device.Thermostat.State,
+			dowrite := true
+			if dev, ok := srv.Devices[id]; ok {
+				if *dev.device.Thermometer == *newd.device.Thermometer &&
+					dev.device.Thermostat.State == newd.device.Thermostat.State {
+					dowrite = false // only record changes
+				}
 			}
-			enc.Encode(&te)
-			srv.datalock.Lock()
-			srv.eventData = append(srv.eventData, te)
-			srv.datalock.Unlock()
+
+			// Stats file rollover
+			todayTemp := getTodayDate()
+			if todayDate.Unix() != todayTemp.Unix() {
+				log.Printf("Switching log file from %d to %d", todayDate.Unix(), todayTemp.Unix())
+				todayDate = todayTemp
+				statFile.Sync()
+				statFile.Close()
+				statFile = GetStatsFile(todayDate)
+			}
+
+			if dowrite {
+				te := refuge.TempEvent{
+					Name:     id,
+					Time:     time.Now(),
+					Temp:     newd.device.Thermometer.Temp,
+					Humidity: newd.device.Thermometer.Humidity,
+					State:    newd.device.Thermostat.State,
+				}
+				enc.Encode(&te)
+				srv.datalock.Lock()
+				srv.eventData = append(srv.eventData, te)
+				srv.datalock.Unlock()
+			}
 		}
+
 		// Update our cached thermostat
 		srv.datalock.Lock()
-		srv.Devices[strings.Replace(td.Name, " ", "", -1)] = newd
+		srv.Devices[id] = newd
 		srv.datalock.Unlock()
 		deviceUpdates <- *td // push updates to alert system
 
@@ -254,6 +282,12 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 		}
 		srv.clientslock.Unlock()
 	}
+}
+
+func getTodayDate() time.Time {
+	now := time.Now()
+	year, month, day := now.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
 }
 
 func weather() http.HandlerFunc {

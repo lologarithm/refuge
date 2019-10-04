@@ -48,9 +48,9 @@ func LoadStats() []refuge.TempEvent {
 	return events
 }
 
-func GetStatsFile() *os.File {
-	now := strconv.FormatInt(time.Now().Unix(), 10)
-	statFile, err := os.OpenFile("./stats/rs_"+now, os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
+func GetStatsFile(when time.Time) *os.File {
+	todayUnix := strconv.FormatInt(when.Unix(), 10)
+	statFile, err := os.OpenFile("./stats/rs_"+todayUnix, os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		log.Printf("Failed to open existing stats file: %s", err)
 	}

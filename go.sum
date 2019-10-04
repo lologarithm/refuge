@@ -4,6 +4,7 @@ github.com/facebookgo/stack v0.0.0-20160209184415-751773369052/go.mod h1:UbMTZqL
 github.com/facebookgo/subset v0.0.0-20150612182917-8dac2c3c4870/go.mod h1:5tD+neXqOorC30/tWg0LCSkrqj/AR6gu8yY8/fpw1q0=
 github.com/go-chi/chi v4.0.0+incompatible h1:SiLLEDyAkqNnw+T/uDTf3aFB9T4FTrwMpuYrgaRcnW4=
 github.com/go-chi/chi v4.0.0+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
+github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c h1:16eHWuMGvCjSfgRJKqIzapE78onvvTbdi1rMkU00lZw=
 github.com/gopherjs/gopherjs v0.0.0-20180825215210-0210a2f0f73c/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/gorilla/websocket v1.2.0 h1:VJtLvh6VQym50czpZzx07z/kw9EgAxI3x1ZB8taTMQQ=
 github.com/gorilla/websocket v1.2.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
@@ -11,6 +12,8 @@ github.com/lologarithm/netgen v1.0.0 h1:DRuo1fSVnu/KJ6e2eCYbqpzbC4Yi3XJdRsvmXtwu
 github.com/lologarithm/netgen v1.0.0/go.mod h1:6pDwfPBREVOH1PubvWCrwOoRfhFJd9BSKWgTaeydjOA=
 github.com/lologarithm/netgen v1.0.1 h1:jXqUostxHdNOWiGqV2Uj7EEi7vYQgiSprhLlJdPAL1M=
 github.com/lologarithm/netgen v1.0.1/go.mod h1:6pDwfPBREVOH1PubvWCrwOoRfhFJd9BSKWgTaeydjOA=
+github.com/lologarithm/netgen v1.0.2 h1:apkArRNO4l7HsCqiROuANPU97C3hk5rvv7Z6GUs80uI=
+github.com/lologarithm/netgen v1.0.2/go.mod h1:6pDwfPBREVOH1PubvWCrwOoRfhFJd9BSKWgTaeydjOA=
 github.com/mailgun/mailgun-go v2.0.0+incompatible h1:0FoRHWwMUctnd8KIR3vtZbqdfjpIMxOZgcSa51s8F8o=
 github.com/mailgun/mailgun-go v2.0.0+incompatible/go.mod h1:NWTyU+O4aczg/nsGhQnvHL6v2n5Gy6Sv5tNDVvC6FbU=
 github.com/mailgun/mailgun-go/v3 v3.3.0 h1:Rfh3mTYqZ6AD9gpO4s8JzLMGiHDZMm6YaM6zJRlLgNY=

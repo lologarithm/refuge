@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/lologarithm/netgen/lib/ngservice"
@@ -10,57 +12,9 @@ import (
 	"gitlab.com/lologarithm/refuge/rnet"
 )
 
-func fakeMonitor() chan rnet.Msg {
-	tstream := make(chan rnet.Msg, 10)
-	go func() {
-		i := 0
-		for {
-			tstream <- rnet.Msg{
-				Device: &refuge.Device{
-					Name:        "Test Living Room",
-					Thermostat:  &refuge.Thermostat{Target: 23.5, State: refuge.StateCooling, Settings: refuge.Settings{High: 25, Low: 18}},
-					Thermometer: &refuge.Thermometer{Temp: 25 + (float32(i % 3)), Humidity: 10.1},
-				},
-			}
-			time.Sleep(3 * time.Second)
-			dev := &refuge.Device{
-				Name:        "Test Family Room",
-				Thermostat:  &refuge.Thermostat{Settings: refuge.Settings{High: 26, Low: 18}},
-				Thermometer: &refuge.Thermometer{Temp: 17 + (float32(i % 3)), Humidity: 10.1},
-			}
-			if dev.Thermometer.Temp < dev.Thermostat.Settings.Low {
-				dev.Thermostat.State = refuge.StateHeating
-				dev.Thermostat.Target = 21.5
-			}
-			tstream <- rnet.Msg{
-				Device: dev,
-			}
-			time.Sleep(3 * time.Second)
-			tstream <- rnet.Msg{
-				Device: &refuge.Device{
-					Name:   "Test Fireplace",
-					Switch: &refuge.Switch{On: i%2 == 0},
-				},
-			}
-			time.Sleep(3 * time.Second)
-			tstream <- rnet.Msg{
-				Device: &refuge.Device{
-					Name: "Test Garage Door",
-					Portal: &refuge.Portal{
-						State: refuge.PortalState(i%2 + 1),
-					},
-				},
-			}
-			time.Sleep(3 * time.Second)
-			i++
-		}
-	}()
-
-	return tstream
-}
-
-// monitor monitors for network messages and decodes/passes them along to the main processor
-func monitor(test bool) (chan rnet.Msg, *net.UDPConn) {
+// networkMonitor monitors for network messages and decodes/passes them along to the main processor
+// the message channel returned by the function is the stream of messages decoded from the network.
+func networkMonitor(test bool) (chan rnet.Msg, *net.UDPConn) {
 	if test {
 		return fakeMonitor(), nil
 	}
@@ -74,43 +28,75 @@ func monitor(test bool) (chan rnet.Msg, *net.UDPConn) {
 	if err != nil {
 		log.Printf("[Error] Failed to listen to udp socket: %s", err)
 	}
-	b := make([]byte, 2048)
+
+	broadcasts, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeDiscovery)
+	if err != nil {
+		fmt.Printf("failed to listen to thermo broadcast address: %s\n", err)
+		os.Exit(1)
+	}
+
 	go func() {
-		var reading *rnet.Msg
+		// This will have us listen for non-respond ping messages.
+		// These will come from devices that first came online
+		// We will ping them directly so they know to update the main server.
+		broadBuf := make([]byte, 2048)
 		for {
-			n, _, _ := udpConn.ReadFromUDP(b)
+			n, remoteAddr, _ := broadcasts.ReadFromUDP(broadBuf)
 			if n > 0 {
-				packet, ok := ngservice.ReadPacket(rnet.Context, b[:n])
-				if ok && packet.Header.MsgType == rnet.MsgMsgType {
-					reading = packet.NetMsg.(*rnet.Msg)
-				} else {
-					log.Printf("Failed to read network message... %v", b[:n])
-					continue
+				packet, ok := ngservice.ReadPacket(rnet.Context, broadBuf[:n])
+				if ok && packet.Header.MsgType == rnet.PingMsgType {
+					if !(packet.NetMsg.(*rnet.Ping)).Respond {
+						udpConn.WriteToUDP(pingmsg, remoteAddr)
+					}
 				}
 			}
-			if reading.Device == nil {
-				log.Printf("Device is nil")
-				continue
-			}
-			switch {
-			case reading.Thermostat != nil:
-				log.Printf("New reading: %#v", reading.Thermostat)
-			case reading.Switch != nil:
-				log.Printf("New Switch: %#v", reading.Switch)
-			case reading.Portal != nil:
-				log.Printf("Portal Update: %#v", reading.Portal)
-			default:
-				log.Printf("Unknown message: %#v", reading)
-				continue
-			}
-			tstream <- *reading
 		}
 	}()
-	ping(udpConn)
+
+	go readNetwork(udpConn, tstream)
+
+	ping(udpConn) // send a ping out to network to find all devices available right now.
+
 	return tstream, udpConn
 }
 
-var pingmsg = ngservice.WriteMessage(rnet.Context, &rnet.Ping{})
+func readNetwork(udpConn *net.UDPConn, tstream chan rnet.Msg) {
+	buf := make([]byte, 2048)
+	var reading *rnet.Msg
+	for {
+		n, _, _ := udpConn.ReadFromUDP(buf)
+		if n > 0 {
+			packet, ok := ngservice.ReadPacket(rnet.Context, buf[:n])
+			if ok && packet.Header.MsgType == rnet.MsgMsgType {
+				reading = packet.NetMsg.(*rnet.Msg)
+			} else {
+				log.Printf("Failed to read network message... %v", buf[:n])
+				continue
+			}
+		}
+		if reading == nil || reading.Device == nil {
+			log.Printf("Device is nil")
+			continue
+		}
+		switch {
+		case reading.Thermostat != nil:
+			log.Printf("New reading: %#v", reading.Thermostat)
+		case reading.Switch != nil:
+			log.Printf("New Switch: %#v", reading.Switch)
+		case reading.Portal != nil:
+			log.Printf("Portal Update: %#v", reading.Portal)
+		default:
+			log.Printf("Unknown message: %#v", reading)
+			continue
+		}
+		if reading.Thermometer != nil {
+			log.Printf("New thermo reading: %#v", reading.Thermometer)
+		}
+		tstream <- *reading
+	}
+}
+
+var pingmsg = ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: true})
 
 func ping(udpConn *net.UDPConn) {
 	// Ping network to find stuff.
@@ -146,7 +132,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			}
 			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &DeviceState{Device: refuge.Device{Portal: &refuge.Portal{}}}
+				existing = &DeviceState{Device: refuge.Device{Name: up.Name, Portal: &refuge.Portal{}}}
 				devices[up.Name] = existing
 			}
 			port := existing.Portal
@@ -161,7 +147,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			}
 			existing.Portal = up.Portal
 			existing.lastUpdate = time.Now()
-		case <-time.After(time.Second * 15):
+		case <-time.After(time.Minute * 5):
 			break
 		}
 
@@ -170,11 +156,15 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)
 
-			if upDiff > time.Minute*2 { // if we haven't heard from device in >2min, ping for an update.
+			if upDiff > time.Minute*3 { // if we haven't heard from device in >3min, ping for an update.
+				addr, _ := net.ResolveUDPAddr("udp", p.Addr)
+				udpConn.WriteToUDP(pingmsg, addr)
+			}
+			if upDiff > time.Minute*5 {
 				// If we haven't heard in 5min... something is prob wrong.
 				if upDiff > upAlertTime && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
 					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
-					sendMail(c.Mailgun, "Refuge Device", "Device "+p.Name+" has not responded in over 5 minutes.")
+					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 5 minutes.")
 					p.numEmails++
 					p.lastEmail = time.Now()
 				}

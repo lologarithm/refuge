@@ -78,6 +78,9 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 	b := make([]byte, 256)
 	runControl := false
 
+	// Ping the network to say we are online
+	direct.WriteToUDP(ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: false}), rnet.RefugeDiscovery)
+
 	readings := []sensor.ThermalReading{}
 	numReadings := 2 // max number of readings to hold for averaging temp
 	for {
@@ -97,17 +100,15 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			runControl = false
 		}
 
-		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, remoteAddr, _ := broadcasts.ReadFromUDP(b)
-		if n > 0 {
-			fmt.Printf("Got message on discovery(%s) from: %s\n", rnet.RefugeDiscovery, remoteAddr.String())
+		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
+		if ping.Respond {
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 			// Emit current state to pinger.
 			direct.WriteToUDP(msg, remoteAddr)
 		}
 
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, remoteAddr, _ = direct.ReadFromUDP(b)
+		n, remoteAddr, _ := direct.ReadFromUDP(b)
 		if n > 0 {
 			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
 			if ok && packet.Header.MsgType == refuge.SettingsMsgType {
@@ -115,6 +116,8 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 				ts.Thermostat.Settings.High = settings.High
 				ts.Thermostat.Settings.Low = settings.Low
 				ts.Thermostat.Settings.Mode = settings.Mode
+			} else if packet.Header.MsgType == rnet.PingMsgType {
+				// Just letting us know to respond to them now.
 			}
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 			runControl = true
@@ -136,7 +139,7 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 
 		// Only re-read sensors once every 2 minutes and when there is no re-controlling to run.
 		if time.Now().Sub(lr) < time.Minute*2 && !runControl {
-			time.Sleep(time.Millisecond * 200)
+			time.Sleep(time.Millisecond * 100)
 			continue
 		}
 
@@ -146,10 +149,16 @@ func runNetwork(name string, cl climate.Controller, readTherm func() (float32, f
 			t, h, csg := readTherm()
 			if csg {
 				if len(readings) > 0 {
-					diff := abs(t - readings[len(readings)-1].Temp)
+					lastReading := readings[len(readings)-1]
+					diff := abs(t - lastReading.Temp)
 					if diff > 10 {
 						// Unlikely this big of a jump would happen
 						print("Last reading >10C different than previous readings. Ignoring reading.\n")
+						break
+					}
+					if diff < 0.01 && abs(h-lastReading.Humi) < 0.01 {
+						fmt.Print("no difference in last reading... ignoring reading.\n")
+						lr = time.Now()
 						break
 					}
 				}

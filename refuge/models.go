@@ -56,6 +56,7 @@ type Switch struct {
 type Device struct {
 	Name string
 	Addr string
+	ID   string
 
 	// List of things that the device could have
 	Switch      *Switch

@@ -3,6 +3,8 @@ package rnet
 import (
 	"net"
 	"time"
+
+	"github.com/lologarithm/netgen/lib/ngservice"
 )
 
 type Listener struct {
@@ -45,4 +47,18 @@ func UpdateListeners(listeners []Listener, addr *net.UDPAddr) []Listener {
 		listeners = append(listeners, Listener{Addr: addr, LastPing: time.Now().Unix(), AddrStr: addrStr})
 	}
 	return listeners
+}
+
+// ReadBroadcastPing will attempt to read a ping message from given connection
+// with a timeout of 10 milliseconds
+func ReadBroadcastPing(conn *net.UDPConn, b []byte) (Ping, *net.UDPAddr) {
+	conn.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
+	n, remoteAddr, _ := conn.ReadFromUDP(b)
+	if n > 0 {
+		packet, ok := ngservice.ReadPacket(Context, b[:n])
+		if ok && packet.Header.MsgType == PingMsgType {
+			return *packet.NetMsg.(*Ping), remoteAddr
+		}
+	}
+	return Ping{}, nil
 }

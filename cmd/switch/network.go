@@ -44,20 +44,20 @@ func setupNetwork(name string) func() int {
 	state := &refuge.Device{Switch: &refuge.Switch{}, Name: name, Addr: direct.LocalAddr().String()}
 	msg := ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
 
+	// Ping the network to say we are online
+	direct.WriteToUDP(ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: false}), rnet.RefugeDiscovery)
+
 	b := make([]byte, 256)
 	return func() int {
-		broadcasts.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, remoteAddr, _ := broadcasts.ReadFromUDP(b)
-		if n > 0 {
-			fmt.Printf("Got message on discovery(%s), updating status: %s", rnet.RefugeDiscovery, string(msg))
-			rnet.UpdateListeners(listeners, remoteAddr)
-			// Emit current state to pinger.
-			direct.WriteToUDP(msg, remoteAddr)
+		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
+		if ping.Respond {
+			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			direct.WriteToUDP(msg, remoteAddr) // Emit current state to pinger.
 		}
 
 		requestedState := 0
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
-		n, remoteAddr, _ = direct.ReadFromUDP(b)
+		n, remoteAddr, _ := direct.ReadFromUDP(b)
 		if n > 0 {
 			packet, ok := ngservice.ReadPacket(refuge.Context, b[:n])
 			if ok && packet.Header.MsgType == refuge.SwitchMsgType {
@@ -67,6 +67,10 @@ func setupNetwork(name string) func() int {
 					requestedState = 2
 				}
 				fmt.Printf("Newly requested state: %d\n", requestedState)
+				state.Switch.On = settings.On
+			} else if packet.Header.MsgType == rnet.PingMsgType {
+				// Just letting us know to respond to them now.
+				fmt.Printf("Got Direct Message, adding to listeners... %v", remoteAddr)
 			}
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})

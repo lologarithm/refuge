@@ -1,52 +1,47 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net"
 
+	"github.com/lologarithm/netgen/lib/ngservice"
 	"gitlab.com/lologarithm/refuge/refuge"
+	"gitlab.com/lologarithm/refuge/rnet"
 )
 
 // This file holds functions to control the various IoT devices via udp messages
 func toggleSwitch(newstate int, conn *net.UDPConn) {
-	msg, err := json.Marshal(refuge.Switch{On: newstate == 1})
-	if err != nil {
-		log.Printf("[Error] Failed to write json switch update: %s", err)
-		return
-	}
+	log.Printf("Attempting to send switch toggle: %#v", newstate)
 	if conn == nil {
 		log.Printf("[Error] No Connection to device.")
 		return
 	}
-	log.Printf("Sending Switch Request: %s", string(msg))
-	conn.Write(msg)
+	n, err := conn.Write(ngservice.WriteMessage(rnet.Context, refuge.Switch{On: newstate == 1}))
+	if n == 0 || err != nil {
+		log.Printf("[Error] Send failed: %v", err)
+	}
 }
 
 func togglePortal(newstate int, conn *net.UDPConn) {
-	msg, err := json.Marshal(refuge.Portal{State: refuge.PortalState(newstate)})
-	if err != nil {
-		log.Printf("[Error] Failed to write json portal update: %s", err)
-		return
-	}
+	log.Printf("Attempting to send switch toggle: %#v", newstate)
 	if conn == nil {
 		log.Printf("[Error] No Connection to device.")
 		return
 	}
-	log.Printf("Sending Portal Request: %s", string(msg))
-	conn.Write(msg)
+	n, err := conn.Write(ngservice.WriteMessage(rnet.Context, refuge.Portal{State: refuge.PortalState(newstate)}))
+	if n == 0 || err != nil {
+		log.Printf("[Error] Send failed: %v", err)
+	}
 }
 
 func setTherm(c refuge.Settings, conn *net.UDPConn) {
-	msg, err := json.Marshal(c)
-	if err != nil {
-		log.Printf("[Error] Failed to write json climate update: %s", err)
-		return
-	}
-	log.Printf("Sending Therm Set Request: %s", string(msg))
+	log.Printf("Attempting to send therm set request: %#v", c)
 	if conn == nil {
 		log.Printf("[Error] No Connection to device.")
 		return
 	}
-	conn.Write(msg)
+	n, err := conn.Write(ngservice.WriteMessage(rnet.Context, c))
+	if n == 0 || err != nil {
+		log.Printf("[Error] Send failed: %v", err)
+	}
 }

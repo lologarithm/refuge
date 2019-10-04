@@ -13,5 +13,5 @@ func main() {
 	loadUserConfig()
 
 	// Launcher monitors and serves web host.
-	serve(*host, runServer(monitor(*test)))
+	serve(*host, runServer(networkMonitor(*test)))
 }
