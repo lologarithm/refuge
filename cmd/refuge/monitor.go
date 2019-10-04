@@ -113,7 +113,7 @@ type DeviceState struct {
 }
 
 const openAlertTime = time.Minute * 30
-const upAlertTime = time.Minute * 5
+const upAlertTime = time.Minute * 6
 
 func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPConn) {
 	// Portal watcher
@@ -149,7 +149,6 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 		for _, p := range devices {
 			pingDiff := time.Now().Sub(p.lastPing)
 			upDiff := time.Now().Sub(p.lastUpdate)
-			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)
 
 			if upDiff > time.Minute*3 || pingDiff > time.Minute*5 { // if we haven't heard from device in >3min, ping for an update.
@@ -157,25 +156,22 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 				if err != nil {
 					log.Printf("Failed to resolve address of device: %s", err.Error())
 				}
+				log.Printf("Writing ping to device: %s", p.Name)
 				udpConn.WriteToUDP(pingmsg, addr)
 				p.lastPing = time.Now()
-			}
-			if upDiff > time.Minute*10 {
-				// If we haven't heard in 10min... something is prob wrong.
-				if upDiff > upAlertTime && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
+
+				// If we haven't gotten an update in a while something is probably wrong.
+				if upDiff > upAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
 					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
 					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 10 minutes.")
 					p.numEmails++
 					p.lastEmail = time.Now()
 				}
-				addr, err := net.ResolveUDPAddr("udp", p.Device.Addr)
-				if err != nil {
-					log.Printf("Failed to write ping, unable to resolve addr: %s", err)
-					continue
-				}
-				udpConn.WriteToUDP(pingmsg, addr)
 			}
-
+			if p.Portal == nil {
+				continue // Dont need t do open checks on non-portals
+			}
+			opDiff := time.Now().Sub(p.lastOpened)
 			// If our garage isn't working correctly or left open, send an alert
 			// But only email once per hour (backing off one hour extra each time)
 			if opDiff > openAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
