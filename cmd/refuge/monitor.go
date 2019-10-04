@@ -124,26 +124,23 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			if !ok {
 				return
 			}
-			// For now only do alerts on portals
-			if up.Portal == nil {
-				break
-			}
 			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &DeviceState{Device: refuge.Device{Name: up.Name, Portal: &refuge.Portal{}}}
+				existing = &DeviceState{Device: up}
 				devices[up.Name] = existing
 			}
-			port := existing.Portal
-			if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
-				// If just opened, set the time.
-				log.Printf("Portal %s is open... starting timer for alert.", up.Name)
-				existing.lastOpened = time.Now()
-			} else if up.Portal.State != refuge.PortalStateOpen {
-				// if not open now, keep updating.
-				existing.lastOpened = time.Now()
-				existing.numEmails = 0 // reset emails sent
+			if port := existing.Portal; port != nil {
+				if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
+					// If just opened, set the time.
+					log.Printf("Portal %s is open... starting timer for alert.", up.Name)
+					existing.lastOpened = time.Now()
+				} else if up.Portal.State != refuge.PortalStateOpen {
+					// if not open now, keep updating.
+					existing.lastOpened = time.Now()
+					existing.numEmails = 0 // reset emails sent
+				}
+				existing.Portal = up.Portal
 			}
-			existing.Portal = up.Portal
 			existing.lastUpdate = time.Now()
 		case <-time.After(time.Minute * 5):
 			break
@@ -156,15 +153,18 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			emailDiff := time.Now().Sub(p.lastEmail)
 
 			if upDiff > time.Minute*3 || pingDiff > time.Minute*5 { // if we haven't heard from device in >3min, ping for an update.
-				addr, _ := net.ResolveUDPAddr("udp", p.Addr)
+				addr, err := net.ResolveUDPAddr("udp", p.Addr)
+				if err != nil {
+					log.Printf("Failed to resolve address of device: %s", err.Error())
+				}
 				udpConn.WriteToUDP(pingmsg, addr)
 				p.lastPing = time.Now()
 			}
-			if upDiff > time.Minute*5 {
-				// If we haven't heard in 5min... something is prob wrong.
+			if upDiff > time.Minute*10 {
+				// If we haven't heard in 10min... something is prob wrong.
 				if upDiff > upAlertTime && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
 					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
-					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 5 minutes.")
+					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 10 minutes.")
 					p.numEmails++
 					p.lastEmail = time.Now()
 				}
