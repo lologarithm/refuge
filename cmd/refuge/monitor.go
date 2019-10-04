@@ -153,14 +153,16 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			upDiff := time.Now().Sub(p.lastUpdate)
 			emailDiff := time.Now().Sub(p.lastEmail)
 
-			if upDiff > time.Minute*3 || pingDiff > time.Minute*5 { // if we haven't heard from device in >3min, ping for an update.
-				addr, err := net.ResolveUDPAddr("udp", p.Addr)
-				if err != nil {
-					log.Printf("Failed to resolve address of device: %s", err.Error())
+			if upDiff > time.Minute*3 { // if we haven't heard from device in >3min, ping for an update.
+				if pingDiff > time.Minute*5 {
+					addr, err := net.ResolveUDPAddr("udp", p.Addr)
+					if err != nil {
+						log.Printf("Failed to resolve address of device: %s", err.Error())
+					}
+					log.Printf("Writing ping to device: %s at %s", p.Name, p.Device.Addr)
+					udpConn.WriteToUDP(pingmsg, addr)
+					p.lastPing = time.Now()
 				}
-				log.Printf("Writing ping to device: %s at %s", p.Name, p.Device.Addr)
-				udpConn.WriteToUDP(pingmsg, addr)
-				p.lastPing = time.Now()
 
 				// If we haven't gotten an update in a while something is probably wrong.
 				if upDiff > upAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
