@@ -140,6 +140,8 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 					existing.numEmails = 0 // reset emails sent
 				}
 				existing.Portal = up.Portal
+			} else {
+				existing.Device = up
 			}
 			existing.lastUpdate = time.Now()
 		case <-time.After(time.Minute * 5):
@@ -156,7 +158,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 				if err != nil {
 					log.Printf("Failed to resolve address of device: %s", err.Error())
 				}
-				log.Printf("Writing ping to device: %s", p.Name)
+				log.Printf("Writing ping to device: %s at %s", p.Name, p.Device.Addr)
 				udpConn.WriteToUDP(pingmsg, addr)
 				p.lastPing = time.Now()
 
