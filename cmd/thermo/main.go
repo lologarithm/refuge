@@ -27,17 +27,16 @@ func main() {
 	// run the thermostat
 	run(*name, *tpin, *mpin, *fpin, *cpin, *hpin)
 
-	// Now just hang out until CTRL+C
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-
 	rpio.Close()
 }
 
 // run in short will take sensor readings, emit them on network, and forward them to the climate controller.
 // Additionally it will accept new settings from the network and send them into the climate controller.
 func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
+	// Now just hang out until CTRL+C
+	close := make(chan os.Signal, 1)
+	signal.Notify(close, os.Interrupt)
+
 	var cl climate.Controller
 	err := rpio.Open()
 	if err != nil {
@@ -45,7 +44,7 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		fmt.Printf("Unable to open raspberry pi gpio pins: %s\n-----  Defaulting to use fake data.  -----\n", err)
 		getMot := func() bool { return true }
 		getTherm := func(includeWait bool) (float32, float32, bool) { return 20, 20, true }
-		go runNetwork(name, cl, getTherm, getMot)
+		go runThermostat(name, cl, close, getTherm, getMot)
 		return
 	}
 
@@ -60,6 +59,8 @@ func run(name string, thermpin, motionpin, fanpin, coolpin, heatpin int) {
 		print("No motion sensor attached. Defaulting to always have motion 'on'.\n")
 	}
 	tp := rpio.Pin(thermpin)
+	// This closure just abstracts the need for knowing the pin to read. The controller logic only cares
+	// about returning the values without having to worry about how it got it.
 	getTherm := func(includeWait bool) (float32, float32, bool) { return sensor.ReadDHT22(tp, includeWait) }
-	go runNetwork(name, cl, getTherm, getMot)
+	runThermostat(name, cl, close, getTherm, getMot)
 }

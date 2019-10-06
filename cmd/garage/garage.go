@@ -62,12 +62,12 @@ func run(name string, cpin int, spin int) {
 			sr := sensor.Read()
 			if sr == rpio.High {
 				if state != refuge.PortalStateClosed {
-					fmt.Printf("Door State: Closed\n")
+					fmt.Printf("New Door State: Closed\n")
 					state = refuge.PortalStateClosed
 				}
 			} else {
 				if state != refuge.PortalStateOpen {
-					fmt.Printf("Door State: Open\n")
+					fmt.Printf("New Door State: Open\n")
 					state = refuge.PortalStateOpen
 				}
 			}

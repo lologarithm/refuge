@@ -105,14 +105,14 @@ func ping(udpConn *net.UDPConn) {
 
 type DeviceState struct {
 	refuge.Device
+	lastPing   time.Time
 	lastUpdate time.Time
 	lastOpened time.Time
 	lastEmail  time.Time
-	numEmails  int
 }
 
 const openAlertTime = time.Minute * 30
-const upAlertTime = time.Minute * 5
+const upAlertTime = time.Minute * 15
 
 func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPConn) {
 	// Portal watcher
@@ -123,26 +123,25 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			if !ok {
 				return
 			}
-			// For now only do alerts on portals
-			if up.Portal == nil {
-				break
-			}
 			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &DeviceState{Device: refuge.Device{Name: up.Name, Portal: &refuge.Portal{}}}
+				existing = &DeviceState{Device: up}
 				devices[up.Name] = existing
 			}
-			port := existing.Portal
-			if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
-				// If just opened, set the time.
-				log.Printf("Portal %s is open... starting timer for alert.", up.Name)
-				existing.lastOpened = time.Now()
-			} else if up.Portal.State != refuge.PortalStateOpen {
-				// if not open now, keep updating.
-				existing.lastOpened = time.Now()
-				existing.numEmails = 0 // reset emails sent
+			if port := existing.Portal; port != nil {
+				if port.State != refuge.PortalStateOpen && up.Portal.State == refuge.PortalStateOpen {
+					// If just opened, set the time.
+					log.Printf("Portal %s is open... starting timer for alert.", up.Name)
+					existing.lastOpened = time.Now()
+				} else if up.Portal.State != refuge.PortalStateOpen {
+					// if not open now, keep updating.
+					existing.lastOpened = time.Now()
+				}
+				existing.Portal = up.Portal
+			} else {
+				existing.Device = up
 			}
-			existing.Portal = up.Portal
+			log.Printf("Got update (%s)", up.Name)
 			existing.lastUpdate = time.Now()
 		case <-time.After(time.Minute * 5):
 			break
@@ -150,36 +149,38 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 
 		for _, p := range devices {
 			upDiff := time.Now().Sub(p.lastUpdate)
-			opDiff := time.Now().Sub(p.lastOpened)
 			emailDiff := time.Now().Sub(p.lastEmail)
 
-			if upDiff > time.Minute*3 { // if we haven't heard from device in >3min, ping for an update.
-				addr, _ := net.ResolveUDPAddr("udp", p.Addr)
-				udpConn.WriteToUDP(pingmsg, addr)
-			}
-			if upDiff > time.Minute*5 {
-				// If we haven't heard in 5min... something is prob wrong.
-				if upDiff > upAlertTime && (emailDiff > time.Hour*time.Duration(p.numEmails)) {
-					log.Printf("Haven't heard from device: %s since %s", p.Name, p.lastUpdate)
-					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 5 minutes.")
-					p.numEmails++
+			if upDiff > time.Minute*5 { // if we haven't heard from device in >3min, ping for an update.
+				// Ping every 5 minutes
+				if time.Now().Sub(p.lastPing) > time.Minute*5 {
+					addr, err := net.ResolveUDPAddr("udp", p.Addr)
+					if err != nil {
+						log.Printf("Failed to resolve address of device: %s", err.Error())
+					}
+					log.Printf("Writing ping to device: %s at %s", p.Name, p.Device.Addr)
+					udpConn.WriteToUDP(pingmsg, addr)
+					p.lastPing = time.Now()
+				}
+
+				// If we haven't gotten an update in a while something is probably wrong.
+				// Email once an hour until we figure it out.
+				if upDiff > upAlertTime && emailDiff > time.Hour {
+					log.Printf("Haven't heard from device: %s since %s. Sending alert email.", p.Name, p.lastUpdate)
+					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded since: "+p.lastUpdate.Format("Mon Jan 2 15:04:05 MST"))
 					p.lastEmail = time.Now()
 				}
-				addr, err := net.ResolveUDPAddr("udp", p.Device.Addr)
-				if err != nil {
-					log.Printf("Failed to write ping, unable to resolve addr: %s", err)
-					continue
-				}
-				udpConn.WriteToUDP(pingmsg, addr)
 			}
-
+			if p.Portal == nil {
+				continue // Dont need t do open checks on non-portals
+			}
+			opDiff := time.Now().Sub(p.lastOpened)
 			// If our garage isn't working correctly or left open, send an alert
 			// But only email once per hour (backing off one hour extra each time)
-			if opDiff > openAlertTime && emailDiff > time.Hour*time.Duration(p.numEmails) {
+			if opDiff > openAlertTime && emailDiff > time.Hour {
 				log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
+				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open since: "+p.lastOpened.Format("Mon Jan 2 15:04:05 MST"))
 				p.lastEmail = time.Now()
-				p.numEmails++
-				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
 			}
 		}
 	}
