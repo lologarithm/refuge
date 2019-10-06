@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"time"
 
@@ -13,46 +12,32 @@ import (
 	"gitlab.com/lologarithm/refuge/sensor"
 )
 
-func runNetwork(name string, cl climate.Controller, readTherm func(includeWait bool) (float32, float32, bool), readMotion func() bool) {
-	ds := refuge.Settings{
-		Low:  19,
-		High: 26.66,
-		Mode: refuge.ModeAuto,
-	} // Shove in first desired state
-	addrs := rnet.MyIPs()
+var defaults = refuge.Settings{
+	Low:  19,
+	High: 26.66,
+	Mode: refuge.ModeAuto,
+}
 
-	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
-	if err != nil {
-		fmt.Printf("Failed to resolve udp: %s\n", err)
-		os.Exit(1)
-	}
-	// Listen to directed udp messages
-	direct, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		fmt.Printf("Failed to listen to udp: %s\n", err)
-		os.Exit(1)
-	}
-	fmt.Printf("Listening on: %s\n", direct.LocalAddr())
+// thermReader is the function that will return the next thermostat reading.
+type thermReader func(includeWait bool) (float32, float32, bool)
+
+func runThermostat(name string, cl climate.Controller, close chan os.Signal, readTherm thermReader, readMotion func() bool) {
+	direct, broadcasts := rnet.SetupUDPConns()
+
 	directAddr := direct.LocalAddr()
-
-	broadcasts, err := net.ListenMulticastUDP("udp", nil, rnet.RefugeDiscovery)
-	if err != nil {
-		fmt.Printf("failed to listen to thermo broadcast address: %s\n", err)
-		os.Exit(1)
-	}
-
 	listeners := []rnet.Listener{}
 
 	ts := &refuge.Device{
 		Name: name,
+		ID:   name, // TODO: make name configurable
 		Addr: directAddr.String(),
 		Thermostat: &refuge.Thermostat{
 			Target: 0,
 			Settings: refuge.Settings{
 				// Default settings on launch
-				Mode: ds.Mode,
-				Low:  ds.Low,
-				High: ds.High,
+				Mode: defaults.Mode,
+				Low:  defaults.Low,
+				High: defaults.High,
 			},
 		},
 		Thermometer: &refuge.Thermometer{
@@ -72,12 +57,16 @@ func runNetwork(name string, cl climate.Controller, readTherm func(includeWait b
 	b := make([]byte, 256)
 	runControl := false
 
-	// Ping the network to say we are online
-	direct.WriteToUDP(ngservice.WriteMessage(rnet.Context, &rnet.Ping{Respond: false}), rnet.RefugeDiscovery)
-
 	readings := []sensor.ThermalReading{}
 	numReadings := 2 // max number of readings to hold for averaging temp
 	for {
+		select {
+		case <-close:
+			return // exit!
+		default:
+			// continue
+		}
+
 		if runControl && len(readings) > 0 {
 			fmt.Printf("(%s) Starting control loop...", time.Now().Format("15:04:05 MST"))
 			avgt := float32(0)
@@ -96,11 +85,8 @@ func runNetwork(name string, cl climate.Controller, readTherm func(includeWait b
 			runControl = false
 		}
 
-		ping, remoteAddr := rnet.ReadBroadcastPing(broadcasts, b)
-		if ping.Respond {
-			listeners = rnet.UpdateListeners(listeners, remoteAddr)
-			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
-		}
+		// Check for broadcast pings
+		listeners = rnet.ReadBroadcastPing(broadcasts, listeners, b, msg)
 
 		direct.SetReadDeadline(time.Now().Add(time.Millisecond * 10))
 		n, remoteAddr, _ := direct.ReadFromUDP(b)
