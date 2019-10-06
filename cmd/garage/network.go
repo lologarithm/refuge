@@ -23,6 +23,7 @@ func setupNetwork(name string) func(refuge.PortalState) refuge.PortalState {
 			fmt.Printf("Broadcasting new state: %#v\n", state.Portal)
 			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
 			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
+			fmt.Printf("Listeners: %#v\n", listeners)
 		}
 
 		// Check for broadcast pings
@@ -45,6 +46,7 @@ func setupNetwork(name string) func(refuge.PortalState) refuge.PortalState {
 				fmt.Printf("Got message of unknown type: %#v (%#v)", packet, b[:n])
 			}
 			listeners = rnet.UpdateListeners(listeners, remoteAddr)
+			fmt.Printf("Listeners: %#v\n", listeners)
 		}
 		return requestedState
 	}

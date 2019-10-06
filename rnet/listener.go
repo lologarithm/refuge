@@ -1,6 +1,7 @@
 package rnet
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -37,9 +38,9 @@ func BroadcastAndTimeout(conn *net.UDPConn, msg []byte, listeners []Listener) []
 // This lets us track when we last heard from a listener so we can expire servers that aren't around anymore.
 func UpdateListeners(listeners []Listener, addr *net.UDPAddr) []Listener {
 	addrStr := addr.String()
-	for _, l := range listeners {
+	for i, l := range listeners {
 		if l.AddrStr == addrStr {
-			l.LastPing = time.Now().Unix()
+			listeners[i].LastPing = time.Now().Unix()
 			return listeners // updated last ping, return now.
 		}
 	}
@@ -59,9 +60,12 @@ func ReadBroadcastPing(conn *net.UDPConn, listeners []Listener, b []byte, respon
 	if !ok || packet.Header.MsgType != PingMsgType {
 		return listeners
 	}
+	fmt.Printf("Got broadcast ping from: %s\n", remoteAddr.String())
 	if ping := (packet.NetMsg.(*Ping)); !ping.Respond {
 		return listeners
 	}
 	// We got a request to broadcast latest state.
-	return BroadcastAndTimeout(conn, response, UpdateListeners(listeners, remoteAddr))
+	listeners = BroadcastAndTimeout(conn, response, UpdateListeners(listeners, remoteAddr))
+	fmt.Printf("Listeners: %#v\n", listeners)
+	return listeners
 }
