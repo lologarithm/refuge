@@ -167,7 +167,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 				// Email once an hour until we figure it out.
 				if upDiff > upAlertTime && emailDiff > time.Hour {
 					log.Printf("Haven't heard from device: %s since %s. Sending alert email.", p.Name, p.lastUpdate)
-					// sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded in over 10 minutes.")
+					sendMail(c.Mailgun, "Refuge Device", "Device '"+p.Name+"' has not responded since: "+p.lastUpdate.Format("Mon Jan 2 15:04:05 MST"))
 					p.lastEmail = time.Now()
 				}
 			}
@@ -179,7 +179,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			// But only email once per hour (backing off one hour extra each time)
 			if opDiff > openAlertTime && emailDiff > time.Hour {
 				log.Printf("Portal Alert: %s\n\tOpen duration: %s\n\tLast Updated: %s ago", p.Name, opDiff, upDiff)
-				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open for over 30 minutes!")
+				sendMail(c.Mailgun, "Refuge Alert", "Portal "+p.Name+" has been open since: "+p.lastOpened.Format("Mon Jan 2 15:04:05 MST"))
 				p.lastEmail = time.Now()
 			}
 		}

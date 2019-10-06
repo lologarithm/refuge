@@ -40,7 +40,6 @@ func setupNetwork(name string) func(refuge.PortalState) refuge.PortalState {
 				fmt.Printf("Newly requested state: %d\n", requestedState)
 			} else if packet.Header.MsgType == rnet.PingMsgType {
 				// Just letting us know to respond to them now.
-				fmt.Printf("Got Direct Message, adding to listeners... %v\n", remoteAddr)
 				direct.WriteToUDP(msg, remoteAddr)
 			} else {
 				fmt.Printf("Got message of unknown type: %#v (%#v)", packet, b[:n])

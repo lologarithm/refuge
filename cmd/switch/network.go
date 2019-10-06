@@ -38,11 +38,9 @@ func setupNetwork(name string) func() int {
 				state.Switch.On = settings.On
 			} else if packet.Header.MsgType == rnet.PingMsgType {
 				// Just letting us know to respond to them now.
-				fmt.Printf("Got Direct Message, adding to listeners... %v", remoteAddr)
 			}
-			listeners = rnet.UpdateListeners(listeners, remoteAddr)
 			msg = ngservice.WriteMessage(rnet.Context, &rnet.Msg{Device: state})
-			listeners = rnet.BroadcastAndTimeout(direct, msg, listeners)
+			listeners = rnet.BroadcastAndTimeout(direct, msg, rnet.UpdateListeners(listeners, remoteAddr))
 		}
 		return requestedState
 	}
