@@ -1,10 +1,12 @@
 package rnet
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"strings"
 
+	"github.com/lologarithm/netgen/lib/ngservice"
 	"gitlab.com/lologarithm/refuge/refuge"
 )
 
@@ -70,4 +72,29 @@ func MyIPs() (mine []string) {
 		}
 	}
 	return mine
+}
+
+// SetupUDPConns will create a udp socket for listening/sendings on and a
+// multicast connection for listening for network broadcasts.
+func SetupUDPConns() (direct *net.UDPConn, broadcast *net.UDPConn) {
+	var err error
+
+	addrs := MyIPs()
+	fmt.Printf("MyAddrs: %#v\n", addrs)
+
+	addr, err := net.ResolveUDPAddr("udp", addrs[0]+":0")
+	failErr("resolve udp", err)
+
+	// Listen to directed udp messages
+	direct, err = net.ListenUDP("udp", addr)
+	failErr("listen direct udp", err)
+	fmt.Printf("Listening on: %s\n", direct.LocalAddr().String())
+
+	broadcast, err = net.ListenMulticastUDP("udp", nil, RefugeDiscovery)
+	failErr("listen multicast udp", err)
+
+	// Ping the network to say we are online
+	direct.WriteToUDP(ngservice.WriteMessage(Context, &Ping{Respond: false}), RefugeDiscovery)
+
+	return direct, broadcast
 }
