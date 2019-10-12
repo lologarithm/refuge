@@ -43,7 +43,9 @@ type server struct {
 
 	conn      *net.UDPConn
 	eventData []refuge.TempEvent
-	done      chan struct{}
+	statsDir  string
+
+	done chan struct{}
 }
 
 func runServer(deviceStream chan rnet.Msg, udpConn *net.UDPConn) *server {
@@ -55,10 +57,11 @@ func runServer(deviceStream chan rnet.Msg, udpConn *net.UDPConn) *server {
 		done:         make(chan struct{}, 1),
 		devUpdates:   make(chan refuge.Device, 5), // Updates from network -> portal watcher
 		conn:         udpConn,
+		statsDir:     globalConfig.StatsDir,
 	}
-	go portalAlert(&globalConfig, srv.devUpdates, udpConn)
+	go portalAlert(globalConfig, srv.devUpdates, udpConn)
 	// Updater goroutine. Updates data state and pushes the new state to websocket clients
-	go eventListener(srv, deviceStream, srv.devUpdates, srv.done)
+	go eventListener(srv, deviceStream)
 	return srv
 }
 
@@ -156,15 +159,19 @@ func Static(w http.ResponseWriter, r *http.Request, path []string) {
 	http.ServeFile(w, r, file)
 }
 
-func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan refuge.Device, done chan struct{}) {
+// eventListener listens to events from the deviceStream (network).
+// It will write out temp events to stats files.
+// It will update all currently listening websockets
+// It pushes the events then to the monitoring system.
+func eventListener(srv *server, deviceStream chan rnet.Msg) {
 	// Load all existing stats from file.
-	events := LoadStats()
+	events := LoadStats(srv.statsDir)
 	srv.datalock.Lock()
 	srv.eventData = events
 	srv.datalock.Unlock()
 
 	todayDate := getTodayDate()
-	statFile := GetStatsFile(todayDate)
+	statFile := getStatsFile(todayDate, srv.statsDir)
 
 	enc := gob.NewEncoder(statFile)
 	for {
@@ -172,7 +179,7 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 		if !ok {
 			statFile.Sync()
 			statFile.Close()
-			done <- struct{}{}
+			srv.done <- struct{}{}
 			return
 		}
 		td := msg.Device
@@ -225,7 +232,7 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 				todayDate = todayTemp
 				statFile.Sync()
 				statFile.Close()
-				statFile = GetStatsFile(todayDate)
+				statFile = getStatsFile(todayDate, srv.statsDir)
 			}
 
 			if dowrite {
@@ -247,7 +254,7 @@ func eventListener(srv *server, deviceStream chan rnet.Msg, deviceUpdates chan r
 		srv.datalock.Lock()
 		srv.Devices[id] = newd
 		srv.datalock.Unlock()
-		deviceUpdates <- *td // push updates to alert system
+		srv.devUpdates <- *td // push updates to alert system
 
 		up := &DeviceUpdate{
 			Device: &newd.device,

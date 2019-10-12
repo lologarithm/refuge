@@ -8,11 +8,15 @@ import (
 
 var globalConfig Config
 
+// Config is server configuration.
+// Includes users&access levels as well as Mailgun config to send warning emails.
 type Config struct {
-	Users   map[string]userAccess
-	Mailgun MailgunConfig
+	Users    map[string]userAccess
+	Mailgun  MailgunConfig
+	StatsDir string
 }
 
+// MailgunConfig is the settings needed to use Mailgun for emails.
 type MailgunConfig struct {
 	APIKey     string
 	Domain     string
@@ -22,7 +26,8 @@ type MailgunConfig struct {
 
 func loadUserConfig() {
 	globalConfig = Config{
-		Users: map[string]userAccess{},
+		Users:    map[string]userAccess{},
+		StatsDir: "./stats",
 	}
 	data, err := ioutil.ReadFile("config.json")
 	if err == nil {

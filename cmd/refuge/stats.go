@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -13,8 +14,9 @@ import (
 	"gitlab.com/lologarithm/refuge/refuge"
 )
 
-func LoadStats() []refuge.TempEvent {
-	files, err := ioutil.ReadDir("./stats")
+// LoadStats will load all stats from given disk location.
+func LoadStats(dir string) []refuge.TempEvent {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		os.Mkdir("stats", os.ModePerm)
 		return nil
@@ -48,9 +50,9 @@ func LoadStats() []refuge.TempEvent {
 	return events
 }
 
-func GetStatsFile(when time.Time) *os.File {
+func getStatsFile(when time.Time, dir string) *os.File {
 	todayUnix := strconv.FormatInt(when.Unix(), 10)
-	statFile, err := os.OpenFile("./stats/rs_"+todayUnix, os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	statFile, err := os.OpenFile(filepath.Join(dir, "/rs_"+todayUnix), os.O_WRONLY|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err != nil {
 		log.Printf("Failed to open existing stats file: %s", err)
 	}
