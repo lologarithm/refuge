@@ -103,7 +103,7 @@ func ping(udpConn *net.UDPConn) {
 	}
 }
 
-type DeviceState struct {
+type deviceState struct {
 	refuge.Device
 	lastPing   time.Time
 	lastUpdate time.Time
@@ -114,9 +114,9 @@ type DeviceState struct {
 const openAlertTime = time.Minute * 30
 const upAlertTime = time.Minute * 15
 
-func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPConn) {
+func portalAlert(c Config, deviceUpdates chan refuge.Device, udpConn *net.UDPConn) {
 	// Portal watcher
-	devices := map[string]*DeviceState{}
+	devices := map[string]*deviceState{}
 	for {
 		select {
 		case up, ok := <-deviceUpdates:
@@ -125,7 +125,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 			}
 			existing, ok := devices[up.Name]
 			if !ok {
-				existing = &DeviceState{Device: up}
+				existing = &deviceState{Device: up}
 				devices[up.Name] = existing
 			}
 			if port := existing.Portal; port != nil {
@@ -138,6 +138,7 @@ func portalAlert(c *Config, deviceUpdates chan refuge.Device, udpConn *net.UDPCo
 					existing.lastOpened = time.Now()
 				}
 				existing.Portal = up.Portal
+				existing.Addr = up.Addr // in case the address changed, update it
 			} else {
 				existing.Device = up
 			}
